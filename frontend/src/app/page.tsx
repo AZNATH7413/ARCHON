@@ -84,7 +84,7 @@ export default function Home() {
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 48 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
               ARCHON
-            <span style={{ color: T.muted, fontSize: 11 }}>v2.0</span>
+            <span style={{ color: 'var(--muted)', fontSize: 11 }}>v4.3</span>
           </Link>
           <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {[
