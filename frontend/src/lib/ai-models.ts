@@ -1,0 +1,17 @@
+export const AI_MODEL_URLS: Record<string, string> = {
+  "Claude 4.6": "https://claude.ai",
+  "GPT-5.4": "https://chatgpt.com",
+  "Gemini 3.1": "https://gemini.google.com",
+  "Grok 4": "https://grok.com",
+  "Perplexity AI": "https://perplexity.ai",
+  "Cursor": "https://cursor.sh",
+  "GitHub Copilot": "https://github.com/features/copilot",
+  "Midjourney V6": "https://midjourney.com",
+  "DALL-E 3": "https://openai.com/dall-e-3",
+  "Devin": "https://cognition.ai",
+  "Manus": "https://manus.ai",
+  "DeepSeek-R1": "https://chat.deepseek.com",
+  "Elicit": "https://elicit.com",
+  "Jasper AI": "https://jasper.ai",
+  "Llama 4": "https://llama.meta.com",
+};
