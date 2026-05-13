@@ -282,7 +282,7 @@ function ChatContent() {
           const cData = await cRes.json();
           convId = cData.id;
           setActiveConv(convId);
-          fetchConversations();
+          await fetchConversations();
         }
       } catch (e) { console.error("Conv creation failed:", e); }
     }

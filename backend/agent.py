@@ -15,7 +15,7 @@ CLOUD_OLLAMA_FALLBACK = ["llama3 (cloud)", "mistral (cloud)", "phi3 (cloud)"]
 
 async def check_ollama() -> dict:
     try:
-        async with httpx.AsyncClient(timeout=1.5) as c:
+        async with httpx.AsyncClient(timeout=4.0) as c:
             r = await c.get(f"{OLLAMA_URL}/api/tags")
             if r.status_code == 200:
                 models = [m["name"] for m in r.json().get("models", [])]
@@ -158,11 +158,13 @@ async def intelligent_agent_response(message: str, db, requested_model: str = No
 
     # ── Prepare Prompts ───────────────────────────────────────────────────────
     # System prompt based on intent
-    if intent == "general":
+    # System prompt based on intent and search results
+    if sources or intent == "general":
         system = (
             "You are ARCHON, a highly intelligent and capable AI assistant. "
             "You are equipped with live web search to answer any question across all domains. "
             "Always provide clear, accurate, and detailed answers based on the provided web search context. "
+            "If the user asks a question that requires current facts (like elections or news), use the search results. "
             "Use markdown formatting."
         )
     else:
