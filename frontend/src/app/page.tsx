@@ -86,11 +86,30 @@ export default function Home() {
               ARCHON
             <span style={{ color: T.muted, fontSize: 11 }}>v2.0</span>
           </Link>
-          <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Link href="/" className="nav-link active">~/home</Link>
-            <Link href="/chat" className="nav-link">~/chat</Link>
-            <Link href="/compare" className="nav-link">~/compare</Link>
-            <Link href="/ai-integrations" className="nav-link">~/integrations</Link>
+          <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {[
+              ['~/matrix_home', '/'],
+              ['~/cloud_chat', '/chat'],
+              ['~/compare_llm', '/compare'],
+              ['~/integrations', '/ai-integrations']
+            ].map(([label, href]) => (
+              <Link key={href} href={href} style={{ textDecoration: 'none' }}>
+                <div style={{ 
+                  background: 'rgba(0,229,255,0.03)', 
+                  border: `1px solid ${T.border}`, 
+                  color: T.muted, 
+                  padding: '6px 12px', 
+                  fontSize: 10, 
+                  fontFamily: T.mono,
+                  transition: 'all 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.cyan; (e.currentTarget as HTMLElement).style.color = T.cyan; (e.currentTarget as HTMLElement).style.background = 'rgba(0,229,255,0.08)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.muted; (e.currentTarget as HTMLElement).style.background = 'rgba(0,229,255,0.03)'; }}>
+                  {label}
+                </div>
+              </Link>
+            ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {authed && <span style={{ color: T.muted, fontSize: 11, display: 'none' }}>{userName}@archon</span>}
