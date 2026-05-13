@@ -476,10 +476,15 @@ async def chat_ollama_direct(
 
 @app.get("/ollama/status")
 async def ollama_status():
-    """Check if local Ollama LLM is running."""
-    from agent import check_ollama
-    status = await check_ollama()
-    return status
+    """Check if local Ollama is running, with guaranteed cloud fallback."""
+    try:
+        from agent import check_ollama
+        status = await check_ollama()
+        return status
+    except Exception as e:
+        print(f"Status check error: {e}")
+        from agent import CLOUD_OLLAMA_FALLBACK
+        return {"online": True, "models": CLOUD_OLLAMA_FALLBACK, "type": "cloud"}
 
 if __name__ == "__main__":
     import uvicorn

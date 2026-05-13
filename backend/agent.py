@@ -73,7 +73,7 @@ async def real_web_search(query: str) -> list:
         import asyncio
         ddgs = DDGS()
         # Run synchronous ddgs in a thread pool to avoid blocking async loop
-        search_results = await asyncio.to_thread(ddgs.text, query, max_results=5)
+        search_results = await asyncio.to_thread(lambda: list(ddgs.text(query, max_results=5)))
         
         for res in search_results:
             if res.get("title") and res.get("body"):
