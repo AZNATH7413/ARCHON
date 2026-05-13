@@ -37,7 +37,7 @@ function Dots() {
 
 function renderMd(txt: string, green: string, cyan: string, muted: string) {
   return txt
-    .replace(/^## (.+)$/gm, `<div style="color:${cyan};font-weight:700;font-size:14px;border-bottom:1px solid #1e293b;padding-bottom:4px;margin:12px 0 6px">$1</div>`)
+    .replace(/^## (.+)$/gm, `<button style="width:100%;text-align:left;background:rgba(0,229,255,0.05);border:1px solid ${cyan}44;color:${cyan};font-weight:700;font-size:13px;padding:8px 12px;margin:12px 0 6px;cursor:default;font-family:inherit;display:block">INTERFACE_SECTION: $1</button>`)
     .replace(/^### (.+)$/gm, `<div style="color:${green};font-weight:600;margin:8px 0 4px">▸ $1</div>`)
     .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${green}">$1</strong>`)
     .replace(/```([\s\S]+?)```/g, `<pre style="color:${cyan};background:#0a0e27;padding:12px;border:1px solid #1e293b;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px;margin:10px 0"><code>$1</code></pre>`)
@@ -89,6 +89,18 @@ function ChatContent() {
   const [copied, setCopied] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) setSidebarOpen(false);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     if (!getToken()) { logout(); return; }
@@ -107,6 +119,7 @@ function ChatContent() {
   };
 
   const loadConversation = async (conv: any) => {
+    if (isMobile) setSidebarOpen(false);
     setActiveConv(conv.id);
     try {
       const res = await fetch(`${API}/chat/conversations`, {
@@ -222,15 +235,32 @@ function ChatContent() {
   return (
     <div className="cyber-container" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: T.bg, fontFamily: T.mono, color: T.text, fontSize: 13 }}>
       <div className="scanline" />
-      {/* SIDEBAR */}
-      <div className="cyber-sidebar" style={{ width: sidebarOpen ? 260 : 0, minWidth: sidebarOpen ? 260 : 0, background: T.panel, borderRight: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', flexShrink: 0, overflow: 'hidden' }}>
+      <div className={`cyber-sidebar ${sidebarOpen ? 'open' : ''}`} style={{ 
+        width: sidebarOpen ? 260 : 0, 
+        minWidth: sidebarOpen ? 260 : 0, 
+        background: T.panel, 
+        borderRight: `1px solid ${T.border}`, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+        flexShrink: 0, 
+        overflow: 'hidden',
+        position: isMobile ? 'absolute' : 'relative',
+        zIndex: 1000,
+        height: '100%'
+      }}>
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 260, height: '100%' }}>
-          <div style={{ borderBottom: `1px solid ${T.border}`, paddingBottom: 12 }}>
-            <div style={{ color: T.cyan, fontWeight: 800, fontSize: 18, letterSpacing: '0.15em', textShadow: `0 0 10px ${T.cyan}44` }}>ARCHON OMNI</div>
-            <div style={{ color: T.muted, fontSize: 10, marginTop: 4 }}>Cloud Matrix v4.1</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${T.border}`, paddingBottom: 12 }}>
+            <div>
+              <div style={{ color: T.cyan, fontWeight: 800, fontSize: 18, letterSpacing: '0.15em', textShadow: `0 0 10px ${T.cyan}44` }}>ARCHON OMNI</div>
+              <div style={{ color: T.muted, fontSize: 10, marginTop: 4 }}>Cloud Matrix v4.1</div>
+            </div>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(false)} style={{ background: 'transparent', border: `1px solid ${T.pink}44`, color: T.pink, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}>CLOSE [X]</button>
+            )}
           </div>
 
-          <button onClick={() => { setActiveConv(null); setMessages([WELCOME_CLOUD]); }}
+          <button onClick={() => { setActiveConv(null); setMessages([WELCOME_CLOUD]); if (isMobile) setSidebarOpen(false); }}
             style={{ background: 'rgba(0,229,255,0.05)', border: `1px solid ${T.cyan}`, color: T.cyan, padding: '10px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'center', transition: 'all 0.2s', fontWeight: 600 }}>
             [+] NEW SESSION
           </button>
@@ -346,13 +376,11 @@ function ChatContent() {
         __html: `
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
         .glass{background:rgba(10,15,29,0.7);backdrop-filter:blur(10px);border:1px solid ${T.border}}
-        .scanline{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.2) 50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02));background-size:100% 2px,3px 100%;pointer-events:none;z-index:100}
+        .scanline{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.2) 50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02));background-size:100% 2px,3px 100%;pointer-events:none;z-index:2000}
         *::-webkit-scrollbar{width:4px}
         *::-webkit-scrollbar-thumb{background:${T.border};border-radius:10px}
         *::-webkit-scrollbar-thumb:hover{background:${T.cyan}}
-        @media(max-width:768px){
-          .cyber-sidebar{position:fixed;z-index:1000;height:100%}
-        }
+        .cyber-sidebar.open { box-shadow: 20px 0 50px rgba(0,0,0,0.8); }
       `}} />
     </div>
   );
