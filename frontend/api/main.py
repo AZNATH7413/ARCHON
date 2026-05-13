@@ -430,10 +430,19 @@ async def chat_cloud(
         
         # Map frontend model names to pollinations model names
         model_map = {
+            "gpt-4o": "openai",
             "gpt-4o-mini": "openai",
             "claude-3-haiku": "claude",
+            "claude-3-sonnet": "claude",
+            "llama-3.1-405b": "llama",
             "llama-3.1-70b": "llama",
-            "mixtral-8x7b": "mistral"
+            "llama-3.1-8b": "llama",
+            "mistral-large": "mistral",
+            "mixtral-8x7b": "mistral",
+            "searchgpt": "searchgpt",
+            "qwen-2.5-72b": "p1",
+            "gemma-2-27b": "p1",
+            "phi-3-medium": "p1"
         }
         target_model = model_map.get(req.model, "openai")
         

@@ -6,53 +6,45 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken, getUser, clearAuth, logout } from '../../lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '/api';
-const OLLAMA = 'http://localhost:11434';
 
 const T = {
-  bg: 'var(--bg)', panel: 'var(--bg-panel)', card: 'var(--bg-card)',
-  green: 'var(--green)', greenDim: 'var(--green-dim)', greenMuted: 'var(--green-muted)', greenFaint: 'var(--green-faint)',
-  cyan: 'var(--cyan)', cyanDim: 'var(--cyan-dim)', border: 'var(--border)', borderCyan: 'var(--border-cyan)',
-  amber: 'var(--amber)', pink: 'var(--pink)', text: 'var(--text)', muted: 'var(--muted)',
+  bg: '#050a15', panel: '#0a0f1d', card: '#0d1225',
+  green: '#00ff9d', greenDim: '#00cc7e', greenMuted: '#004d30',
+  cyan: '#00e5ff', cyanDim: '#00b8cc', border: '#1f2937',
+  amber: '#ffb300', pink: '#ff4081', text: '#e0e7ff', muted: '#94a3b8',
   mono: "var(--font-mono)",
 };
 
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; time: string; sources?: any[]; ollamaUsed?: boolean; loading?: boolean; }
-interface OllamaStatus { online: boolean; models: string[]; type?: 'local' | 'cloud'; }
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; time: string; sources?: any[]; loading?: boolean; }
 
 const WELCOME_CLOUD: Msg = {
   id: 'w3', role: 'assistant', time: '',
-  content: `OmniCloud AI v3.0 — Infinite Intelligence
+  content: `OmniCloud AI v4.1 — High-Fidelity Intelligence
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-> Global Cloud Access: Enabled
-> Multi-Model Synthesis: Online
-> 25+ High-Performance LLMs available
+> Cloud Matrix: Synchronized
+> Global Model Library: Active (25+ models)
+> Real-time Inference: Online
 
-Select a state-of-the-art model from the header to begin.`,
+Choose your engine from the Model Selector and transmit your query.`,
 };
 
 function Dots() {
   const [n, setN] = useState(0);
   useEffect(() => { const t = setInterval(() => setN(x => (x + 1) % 4), 400); return () => clearInterval(t); }, []);
-  return <span style={{ color: T.greenDim }}>{'> querying' + '.'.repeat(n)}<span style={{ animation: 'blink 1s infinite', display: 'inline-block' }}>_</span></span>;
+  return <span style={{ color: T.cyan }}>{'> processing' + '.'.repeat(n)}</span>;
 }
 
 function renderMd(txt: string, green: string, cyan: string, muted: string) {
   return txt
-    .replace(/^## (.+)$/gm, `<div style="display:flex;justify-content:space-between;align-items:center;color:${cyan};font-weight:700;font-size:13px;border-bottom:1px solid #0d2e18;padding-bottom:3px;margin:10px 0 4px"><span>$1</span><button onclick="navigator.clipboard.writeText('$1')" style="color:#ff6b35;font-size:10px;cursor:pointer;background:transparent;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#ff6b35';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#ff6b35'">Copy</button></div>`)
-    .replace(/^### (.+)$/gm, `<div style="color:${green};font-weight:600;margin:7px 0 3px">▸ $1</div>`)
+    .replace(/^## (.+)$/gm, `<div style="color:${cyan};font-weight:700;font-size:14px;border-bottom:1px solid #1e293b;padding-bottom:4px;margin:12px 0 6px">$1</div>`)
+    .replace(/^### (.+)$/gm, `<div style="color:${green};font-weight:600;margin:8px 0 4px">▸ $1</div>`)
     .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${green}">$1</strong>`)
-    .replace(/```([\s\S]+?)```/g, `<div style="position:relative;margin:10px 0"><button onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)" style="position:absolute;top:5px;right:5px;color:#ff6b35;font-size:10px;cursor:pointer;background:#0a0e27;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;z-index:10;">Copy Code</button><pre style="color:${cyan};background:#0a0e27;padding:10px;border:1px solid #1f2136;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px"><code>$1</code></pre></div>`)
-    .replace(/`([^`]+)`/g, `<code style="color:${cyan};background:#1a0006;padding:1px 5px;border:1px solid #80001a;border-radius:3px">$1</code>`)
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" style="color:${cyan};text-decoration:underline dotted">$1↗</a>`)
-    .replace(/^\|(.+)\|$/gm, row => {
-      const cells = row.split('|').filter(Boolean);
-      if (cells.every(c => /^[-: ]+$/.test(c))) return '';
-      return `<tr>${cells.map(c => `<td style="padding:3px 10px;border-right:1px solid #33000a;color:#ffd4d4">${c.trim()}</td>`).join('')}</tr>`;
-    })
-    .replace(/(<tr>[\s\S]*?<\/tr>)+/g, m => `<table style="border-collapse:collapse;margin:8px 0;border:1px solid #33000a;font-size:11px">${m}</table>`)
-    .replace(/^- (.+)$/gm, `<div style="display:flex;gap:8px;margin:2px 0"><span style="color:${green}">▸</span><span>$1</span></div>`)
-    .replace(/^(\d+)\. (.+)$/gm, `<div style="display:flex;gap:8px;margin:2px 0"><span style="color:${cyan};font-weight:700">$1.</span><span>$2</span></div>`)
+    .replace(/```([\s\S]+?)```/g, `<pre style="color:${cyan};background:#0a0e27;padding:12px;border:1px solid #1e293b;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px;margin:10px 0"><code>$1</code></pre>`)
+    .replace(/`([^`]+)`/g, `<code style="color:${cyan};background:rgba(0,229,255,0.1);padding:1px 5px;border-radius:3px">$1</code>`)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" style="color:${cyan};text-decoration:underline">$1↗</a>`)
+    .replace(/^- (.+)$/gm, `<div style="display:flex;gap:8px;margin:4px 0;line-height:1.5"><span style="color:${green};flex-shrink:0">▸</span><span>$1</span></div>`)
+    .replace(/^(\d+)\. (.+)$/gm, `<div style="display:flex;gap:8px;margin:4px 0;line-height:1.5"><span style="color:${cyan};font-weight:700;flex-shrink:0">$1.</span><span>$2</span></div>`)
     .replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
 }
 
@@ -60,68 +52,33 @@ function ChatContent() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // Voice State
   const [isRecording, setIsRecording] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Initialize Speech Recognition
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false;
-        recognitionRef.current.interimResults = false;
-
         recognitionRef.current.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
           setInput(prev => (prev ? prev + ' ' : '') + transcript);
           setIsRecording(false);
         };
-
-        recognitionRef.current.onerror = () => {
-          setIsRecording(false);
-        };
-
-        recognitionRef.current.onend = () => {
-          setIsRecording(false);
-        };
+        recognitionRef.current.onend = () => setIsRecording(false);
       }
     }
   }, []);
 
   const toggleRecording = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop();
-      setIsRecording(false);
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsRecording(true);
-      } catch (e) {
-        console.error('Speech recognition error:', e);
-      }
-    }
+    if (isRecording) { recognitionRef.current?.stop(); setIsRecording(false); }
+    else { try { recognitionRef.current?.start(); setIsRecording(true); } catch { setIsRecording(false); } }
   };
 
-  const speakText = (text: string) => {
-    if (!autoRead || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-
-    const cleanText = text.replace(/[*_#`]/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const [mode, setMode] = useState<'cloud'>('cloud');
-  const [messages, setMessages] = useState<Msg[]>([]);
-  useEffect(() => { setMessages([WELCOME_CLOUD]); }, []);
-
+  const [messages, setMessages] = useState<Msg[]>([WELCOME_CLOUD]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>({ online: true, models: [], type: 'cloud' });
-  const [ollamaModel, setOllamaModel] = useState('');
   const [cloudModel, setCloudModel] = useState('gpt-4o-mini');
   const [user, setUser] = useState<any>({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -130,17 +87,13 @@ function ChatContent() {
   const [histIdx, setHistIdx] = useState(-1);
   const [activeConv, setActiveConv] = useState<number | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [modelCount, setModelCount] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!getToken()) { logout(); return; }
     setUser(getUser());
-    checkOllama();
     fetchConversations();
-    const t = setInterval(checkOllama, 30000);
-    return () => clearInterval(t);
   }, []);
 
   const fetchConversations = async () => {
@@ -182,172 +135,18 @@ function ChatContent() {
       if (res.status === 401) { logout(); return; }
       if (res.ok) {
         setHistory(h => h.filter(c => c.id !== id));
-        if (activeConv === id) {
-          setActiveConv(null);
-          setMessages([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]);
-        }
+        if (activeConv === id) { setActiveConv(null); setMessages([WELCOME_CLOUD]); }
       }
     } catch (e) { console.error(e); }
   };
 
-  useEffect(() => {
-    fetch(`${API}/models`).then(r => r.json()).then(d => {
-      const count = Array.isArray(d) ? d.length : 0;
-      setModelCount(count);
-      setMessages(prev => {
-        if (prev.length > 0 && prev[0].role === 'assistant') {
-          const first = { ...prev[0] };
-          first.content = first.content.replace(/\d+ models indexed/, `${count} models indexed`);
-          return [first, ...prev.slice(1)];
-        }
-        return prev;
-      });
-    }).catch(() => {});
-  }, []);
-
-  // Pre-fill search from query param
-  useEffect(() => {
-    const q = sp.get('q');
-    if (q) { setInput(q); setTimeout(() => inputRef.current?.focus(), 200); }
-  }, [sp]);
-
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
-
-  const checkOllama = async () => {
-    try {
-      const r = await fetch(`${API}/ollama/status`);
-      if (r.ok) {
-        const d = await r.json();
-        setOllamaStatus(d);
-        if (d.models?.length) setOllamaModel(d.models[0]);
-      }
-    } catch { setOllamaStatus({ online: false, models: [] }); }
-  };
-
-  const sendArchon = async (text: string) => {
-    const id = Date.now().toString();
-    const loadId = (Date.now() + 1).toString();
-    setMessages(p => [...p, { id, role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, { id: loadId, role: 'assistant', content: '', time: '', loading: true }]);
-    
-    let convId = activeConv;
-    if (!convId) {
-      try {
-        const cRes = await fetch(`${API}/chat/conversations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
-        });
-        if (cRes.status === 401) { logout(); return; }
-        if (cRes.ok) {
-          const cData = await cRes.json();
-          convId = cData.id;
-          setActiveConv(convId);
-          await fetchConversations();
-        }
-      } catch (e) { console.error("Conv creation failed:", e); }
-    }
-
-    if (convId) {
-      fetch(`${API}/chat/conversations/${convId}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ role: 'user', content: text })
-      }).catch(console.error);
-    }
-
-    try {
-      const r = await fetch(`${API}/chat/archon`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ message: text, model: ollamaModel }),
-      });
-      if (r.status === 401) { logout(); return; }
-      const d = await r.json();
-      
-      const replyContent = d.response || 'No response from ARCHON.';
-      if (convId && d.response) {
-        fetch(`${API}/chat/conversations/${convId}/messages`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ role: 'assistant', content: replyContent })
-        }).catch(console.error);
-      }
-
-      setMessages(p => p.filter(m => m.id !== loadId).concat({
-        id: (Date.now() + 2).toString(), role: 'assistant',
-        content: replyContent,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        ollamaUsed: d.ollama_used,
-        sources: d.sources
-      }));
-    } catch {
-      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Backend unreachable.', time: '' }));
-    }
-  };
-
-  const sendOllama = async (text: string) => {
-    const loadId = (Date.now() + 1).toString();
-    const model = ollamaModel === 'auto' ? (ollamaStatus?.models[0] || 'llama3') : ollamaModel;
-    setMessages(p => [...p,
-    { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-    { id: loadId, role: 'assistant', content: '', time: '', loading: true }
-    ]);
-
-    let convId = activeConv;
-    if (!convId) {
-      try {
-        const cRes = await fetch(`${API}/chat/conversations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
-        });
-        if (cRes.status === 401) { logout(); return; }
-        if (cRes.ok) {
-          const cData = await cRes.json();
-          convId = cData.id;
-          setActiveConv(convId);
-          fetchConversations();
-        }
-      } catch (e) { console.error(e); }
-    }
-    if (convId) {
-      fetch(`${API}/chat/conversations/${convId}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ role: 'user', content: text })
-      }).catch(console.error);
-    }
-
-    try {
-      const r = await fetch(`${API}/chat/ollama-direct`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ message: text, model: model }),
-      });
-      if (r.status === 401) { logout(); return; }
-      const d = r.ok ? await r.json() : null;
-      const replyContent = d?.response || 'Error connecting to Ollama.';
-      
-      if (convId && d?.response) {
-        fetch(`${API}/chat/conversations/${convId}/messages`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ role: 'assistant', content: replyContent })
-        }).catch(console.error);
-      }
-
-      setMessages(p => p.filter(m => m.id !== loadId).concat({
-        id: (Date.now() + 2).toString(), role: 'assistant',
-        content: replyContent,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        ollamaUsed: true
-      }));
-    } catch {
-      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Backend unreachable.', time: '' }));
-    }
-  };
 
   const sendCloud = async (text: string) => {
     const loadId = (Date.now() + 1).toString();
     setMessages(p => [...p,
-    { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-    { id: loadId, role: 'assistant', content: '', time: '', loading: true }
+      { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+      { id: loadId, role: 'assistant', content: '', time: '', loading: true }
     ]);
 
     let convId = activeConv;
@@ -358,14 +157,13 @@ function ChatContent() {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
         });
-        if (cRes.status === 401) { logout(); return; }
         if (cRes.ok) {
           const cData = await cRes.json();
           convId = cData.id;
           setActiveConv(convId);
           fetchConversations();
         }
-      } catch (e) { console.error(e); }
+      } catch {}
     }
     if (convId) {
       fetch(`${API}/chat/conversations/${convId}/messages`, {
@@ -380,7 +178,6 @@ function ChatContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ message: text, model: cloudModel }),
       });
-      if (r.status === 401) { logout(); return; }
       const d = r.ok ? await r.json() : null;
       const replyContent = d?.response || 'Error connecting to OmniCloud.';
 
@@ -394,22 +191,16 @@ function ChatContent() {
       setMessages(p => p.filter(m => m.id !== loadId).concat({
         id: (Date.now() + 2).toString(), role: 'assistant',
         content: replyContent,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        ollamaUsed: true
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }));
     } catch {
-      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Cannot connect to OmniCloud backend.', time: '' }));
+      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Connection failure.', time: '' }));
     }
   };
 
   const send = useCallback(async (text: string) => {
     const t = text.trim();
     if (!t || loading) return;
-    let resolved = t;
-    if (t.startsWith('/search ')) resolved = `Search the web: ${t.slice(8)}`;
-    if (t.startsWith('/recommend ')) resolved = `Recommend AI model for: ${t.slice(11)}`;
-    if (t === '/list') resolved = 'List all AI models';
-    if (t === '/free') resolved = 'Show all free AI models';
     setCommandHistory(h => [t, ...h.slice(0, 49)]);
     setHistIdx(-1);
     setInput('');
@@ -417,7 +208,7 @@ function ChatContent() {
     await sendCloud(t);
     setLoading(false);
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, [loading, cloudModel]);
+  }, [loading, cloudModel, activeConv]);
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
@@ -426,246 +217,126 @@ function ChatContent() {
   };
 
   const copy = (id: string, txt: string) => { navigator.clipboard.writeText(txt); setCopied(id); setTimeout(() => setCopied(null), 1500); };
-  const displayName = user?.username || user?.full_name || 'user';
-  const isArchon = mode === 'archon';
-  const accentColor = isArchon ? T.green : T.cyan;
-  const accentBorder = isArchon ? T.greenMuted : T.borderCyan;
+  const displayName = user?.username || 'User';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: T.bg, fontFamily: T.mono, color: T.text, fontSize: 13 }}>
+    <div className="cyber-container" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: T.bg, fontFamily: T.mono, color: T.text, fontSize: 13 }}>
+      <div className="scanline" />
       {/* SIDEBAR */}
-      <div style={{ width: sidebarOpen ? 220 : 0, minWidth: sidebarOpen ? 220 : 0, overflow: 'hidden', background: T.panel, borderRight: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', transition: 'all 0.2s', flexShrink: 0 }}>
-        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 220, height: '100%' }}>
-          {/* Brand */}
-          <div style={{ paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
-            <div style={{ color: T.green, fontWeight: 700, fontSize: 14, letterSpacing: '0.1em' }}>
-              ARCHON&gt;_
-            </div>
-            <div style={{ color: T.muted, fontSize: 10, marginTop: 2 }}>AI Discovery Engine v2.0</div>
+      <div className="cyber-sidebar" style={{ width: sidebarOpen ? 260 : 0, minWidth: sidebarOpen ? 260 : 0, background: T.panel, borderRight: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', flexShrink: 0, overflow: 'hidden' }}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 260, height: '100%' }}>
+          <div style={{ borderBottom: `1px solid ${T.border}`, paddingBottom: 12 }}>
+            <div style={{ color: T.cyan, fontWeight: 800, fontSize: 18, letterSpacing: '0.15em', textShadow: `0 0 10px ${T.cyan}44` }}>ARCHON OMNI</div>
+            <div style={{ color: T.muted, fontSize: 10, marginTop: 4 }}>Cloud Matrix v4.1</div>
           </div>
 
-          {/* Mode switcher */}
-          <div>
-            <div style={{ color: T.muted, fontSize: 10, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Current Mode</div>
-            <div style={{ background: `${T.amber}11`, border: `1px solid ${T.amber}`, color: T.amber, padding: '5px 8px', fontFamily: T.mono, fontSize: 11 }}>
-              ▶ OmniCloud AI (Active)
-            </div>
-          </div>
-
-          {/* System status */}
-          <div style={{ fontSize: 10 }}>
-            <span style={{ color: T.green }}>● CLOUD NODES ACTIVE</span>
-            <div style={{ color: T.muted, marginTop: 3 }}>Latency: ~120ms</div>
-          </div>
-
-          {/* New chat */}
-          <button onClick={() => { setActiveConv(null); setMessages([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]); }}
-            style={{ background: 'transparent', border: `1px solid ${accentColor}`, color: accentColor, padding: '6px 10px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', transition: 'all 0.15s' }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.background = accentColor; (e.target as HTMLElement).style.color = T.bg; }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; (e.target as HTMLElement).style.color = accentColor; }}>
-            [+] NEW CONVERSATION
+          <button onClick={() => { setActiveConv(null); setMessages([WELCOME_CLOUD]); }}
+            style={{ background: 'rgba(0,229,255,0.05)', border: `1px solid ${T.cyan}`, color: T.cyan, padding: '10px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'center', transition: 'all 0.2s', fontWeight: 600 }}>
+            [+] NEW SESSION
           </button>
 
-          {/* History */}
-          {history.length > 0 && (
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              <div style={{ color: T.muted, fontSize: 10, marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>History</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {history.map((c) => (
-                  <div key={c.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <button onClick={() => loadConversation(c)}
-                      style={{ flex: 1, background: activeConv === c.id ? `${T.cyan}22` : 'transparent', border: 'none', color: activeConv === c.id ? T.cyan : T.muted, padding: '4px 6px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', borderRadius: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.title || 'Chat'}
-                    </button>
-                    <button onClick={(e) => deleteConversation(e, c.id)}
-                      style={{ background: 'transparent', border: 'none', color: T.pink, cursor: 'pointer', padding: '2px 5px', fontSize: 10, opacity: 0.4 }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.4'}>
-                      [x]
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Quick commands (archon only) */}
-          {isArchon && (
-            <div>
-              <div style={{ color: T.muted, fontSize: 10, marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Quick Commands</div>
-              {QUICK.map((c, i) => (
-                <button key={i} onClick={() => send(c.cmd)}
-                  style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', color: T.greenDim, padding: '3px 2px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', transition: 'color 0.1s' }}
-                  onMouseEnter={e => (e.target as HTMLElement).style.color = T.cyan}
-                  onMouseLeave={e => (e.target as HTMLElement).style.color = T.greenDim}>
-                  {c.label}
-                </button>
+          <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Memory Banks</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {history.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => loadConversation(c)}
+                    style={{ flex: 1, background: activeConv === c.id ? 'rgba(0,229,255,0.1)' : 'transparent', border: activeConv === c.id ? `1px solid ${T.cyan}44` : 'none', color: activeConv === c.id ? T.cyan : T.muted, padding: '8px 10px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', transition: 'all 0.2s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {c.title || 'Untitled_Entry'}
+                  </button>
+                  <button onClick={(e) => deleteConversation(e, c.id)} style={{ color: T.pink, padding: '4px', fontSize: 10, cursor: 'pointer', background: 'transparent', border: 'none', opacity: 0.5 }}>[X]</button>
+                </div>
               ))}
             </div>
-          )}
+          </div>
 
-          {/* Nav */}
-          <div style={{ marginTop: 'auto', borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
-            {[['~/home', '/'], ['~/compare', '/compare'], ['~/integrations', '/ai-integrations'], ['~/profile', '/profile']].map(([label, href]) => (
-              <Link key={href} href={href} style={{ display: 'block', color: T.muted, fontSize: 11, padding: '3px 2px', textDecoration: 'none', transition: 'color 0.1s' }}
-                onMouseEnter={e => (e.target as HTMLElement).style.color = T.cyan}
-                onMouseLeave={e => (e.target as HTMLElement).style.color = T.muted}>
-                {label}
-              </Link>
-            ))}
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: T.muted }}>{displayName}@archon</span>
+              <button onClick={() => { clearAuth(); router.push('/auth/login'); }} style={{ color: T.pink, fontSize: 10, cursor: 'pointer', background: 'transparent', border: `1px solid ${T.pink}44`, padding: '4px 8px' }}>DISCONNECT</button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* MAIN */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Header */}
-        <div className="glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'transparent', border: 'none', color: T.muted, cursor: 'pointer', fontFamily: T.mono, fontSize: 14, padding: '2px 6px' }}>{sidebarOpen ? '◂' : '▸'}</button>
-            <span style={{ color: accentColor, fontWeight: 900, letterSpacing: '0.1em', textShadow: `0 0 10px ${accentColor}` }}>
-              {mode === 'archon' ? 'ARCHON AGENT' : mode === 'cloud' ? 'OMNICLOUD AI' : 'OLLAMA DIRECT'}
-            </span>
-
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: T.muted }}>
-                <input type="checkbox" checked={autoRead} onChange={e => setAutoRead(e.target.checked)} />
-                Auto-Speak
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: T.muted, fontSize: 10, textTransform: 'uppercase' }}>Model Selector:</span>
-                <select value={cloudModel} onChange={e => setCloudModel(e.target.value)}
-                  style={{
-                    background: T.card, border: `1px solid ${T.amber}`, color: T.amber,
-                    fontFamily: T.mono, fontSize: 12, padding: '4px 8px', borderRadius: 4, outline: 'none', cursor: 'pointer', minWidth: 180
-                  }}>
-                  <optgroup label="OpenAI Models">
-                    <option value="gpt-4o">GPT-4o (Omni)</option>
-                    <option value="gpt-4o-mini">GPT-4o Mini</option>
-                  </optgroup>
-                  <optgroup label="Anthropic Models">
-                    <option value="claude-3-haiku">Claude 3 Haiku</option>
-                    <option value="claude-3-sonnet">Claude 3.5 Sonnet</option>
-                  </optgroup>
-                  <optgroup label="Meta / Llama">
-                    <option value="llama-3.1-405b">Llama 3.1 405B</option>
-                    <option value="llama-3.1-70b">Llama 3.1 70B</option>
-                    <option value="llama-3.1-8b">Llama 3.1 8B</option>
-                  </optgroup>
-                  <optgroup label="Mistral Models">
-                    <option value="mistral-large">Mistral Large 2</option>
-                    <option value="mixtral-8x7b">Mixtral 8x7B</option>
-                  </optgroup>
-                  <optgroup label="Google Models">
-                    <option value="gemma-2-27b">Gemma 2 27B</option>
-                  </optgroup>
-                  <optgroup label="Specialized Models">
-                    <option value="searchgpt">SearchGPT (Live Search)</option>
-                    <option value="qwen-2.5-72b">Qwen 2.5 72B</option>
-                    <option value="phi-3-medium">Phi-3 Medium</option>
-                  </optgroup>
-                </select>
-              </div>
-
+        <div className="glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: `1px solid ${T.border}`, zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: 'transparent', border: 'none', color: T.cyan, cursor: 'pointer', fontSize: 16 }}>{sidebarOpen ? '◂' : '▸'}</button>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ color: T.cyan, fontWeight: 900, fontSize: 14, letterSpacing: '0.1em' }}>OMNICLOUD AI</span>
+              <span style={{ color: T.green, fontSize: 9 }}>STATUS: OPTIMAL</span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ color: T.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{displayName}@archon</span>
-            <button onClick={() => { clearAuth(); router.push('/auth/login'); }}
-              className="cyber-btn cyber-btn-danger" style={{ fontSize: 10, padding: '6px 10px' }}>
-              logout
-            </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <select value={cloudModel} onChange={e => setCloudModel(e.target.value)}
+              style={{ background: T.card, border: `1px solid ${T.cyan}44`, color: T.cyan, fontFamily: T.mono, fontSize: 12, padding: '6px 12px', outline: 'none', cursor: 'pointer', boxShadow: `0 0 15px ${T.cyan}11` }}>
+              <optgroup label="Core Intelligence">
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="claude-3-sonnet">Claude 3.5 Sonnet</option>
+              </optgroup>
+              <optgroup label="Meta Matrix">
+                <option value="llama-3.1-405b">Llama 3.1 405B</option>
+                <option value="llama-3.1-70b">Llama 3.1 70B</option>
+              </optgroup>
+              <optgroup label="Advanced Operations">
+                <option value="searchgpt">Real-Time SearchGPT</option>
+                <option value="mistral-large">Mistral Large 2</option>
+                <option value="qwen-2.5-72b">Qwen 2.5</option>
+              </optgroup>
+            </select>
           </div>
         </div>
 
-        {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, scrollbarWidth: 'thin', scrollbarColor: `${T.greenMuted} ${T.panel}` }}>
-          <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {/* CHAT AREA */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 24, scrollbarWidth: 'thin' }}>
+          <div style={{ maxWidth: 850, margin: '0 auto', width: '100%' }}>
             {messages.map(msg => (
-              <div key={msg.id} style={{ marginBottom: 16, animation: 'fadeIn 0.25s ease' }}>
-                {msg.role === 'user' ? (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ maxWidth: '72%' }}>
-                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ color: T.muted, fontSize: 10 }}>{msg.time}</span>
-                        <span style={{ color: accentColor, fontSize: 10, fontWeight: 700 }}>{displayName}</span>
-                      </div>
-                      <div style={{ background: '#001a30', border: `1px solid ${accentColor}44`, padding: '8px 14px', color: accentColor, lineHeight: 1.6 }}>
-                        <span style={{ color: accentColor, opacity: 0.5, marginRight: 6 }}>&gt;</span>{msg.content}
-                      </div>
-                    </div>
-                  </div>
-                ) : msg.loading ? (
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ color: accentColor, fontWeight: 700, marginTop: 2, fontSize: 12 }}>$</span>
-                    <div style={{ border: `1px solid ${T.border}`, padding: '10px 14px', flex: 1 }}><Dots /></div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ color: accentColor, fontWeight: 700, marginTop: 10, fontSize: 12, flexShrink: 0 }}>$</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ color: accentColor, fontSize: 10, fontWeight: 700 }}>{mode === 'archon' ? 'ARCHON' : mode === 'cloud' ? 'OMNICLOUD' : 'OLLAMA'}</span>
-                        {msg.time && <span style={{ color: T.muted, fontSize: 10 }}>{msg.time}</span>}
-                        {msg.ollamaUsed && <span style={{ color: T.green, fontSize: 9, border: `1px solid ${mode === 'cloud' ? T.amber : T.greenMuted}`, padding: '1px 5px' }}>LLM</span>}
-                        {msg.sources && msg.sources.length > 0 && <span style={{ color: T.cyan, fontSize: 9, border: `1px solid ${T.borderCyan}`, padding: '1px 5px' }}>[{msg.sources.length} src]</span>}
-                        <button onClick={() => copy(msg.id, msg.content)} style={{ background: 'transparent', border: 'none', color: T.muted, cursor: 'pointer', fontFamily: T.mono, fontSize: 9, padding: '1px 4px', marginLeft: 'auto' }}>
-                          {copied === msg.id ? '[copied]' : '[copy]'}
-                        </button>
-                      </div>
-                      <div style={{ border: `1px solid ${T.border}`, padding: '10px 14px', lineHeight: 1.7, color: T.text }}
-                        dangerouslySetInnerHTML={{ __html: renderMd(msg.content, T.green, T.cyanDim, T.muted) }} />
-                      {msg.sources && msg.sources.length > 0 && (
-                        <div style={{ marginTop: 6, padding: '6px 10px', background: '#00100a', border: `1px solid ${T.border}`, fontSize: 11 }}>
-                          <div style={{ color: T.greenMuted, marginBottom: 4, letterSpacing: '0.06em', fontSize: 10 }}>SOURCES</div>
-                          {msg.sources.map((s: any, i: number) => (
-                            <div key={i} style={{ marginBottom: 3 }}>
-                              <span style={{ color: T.muted }}>[{i + 1}]</span>{' '}
-                              {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: T.cyanDim, textDecoration: 'underline dotted' }}>{s.title}</a>
-                                : <span style={{ color: T.cyanDim }}>{s.title}</span>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 20, animation: 'fadeIn 0.4s ease-out forwards' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, opacity: 0.7 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: msg.role === 'user' ? T.cyan : T.green }}>{msg.role === 'user' ? displayName : 'OMNICLOUD'}</span>
+                  <span style={{ fontSize: 9, color: T.muted }}>{msg.time}</span>
+                </div>
+                <div style={{
+                  maxWidth: '85%',
+                  background: msg.role === 'user' ? 'rgba(0,229,255,0.06)' : 'rgba(10,15,29,0.9)',
+                  border: `1px solid ${msg.role === 'user' ? T.cyan : T.border}`,
+                  padding: '14px 18px',
+                  lineHeight: 1.65,
+                  boxShadow: msg.role === 'user' ? `0 4px 15px rgba(0,229,255,0.03)` : 'none',
+                  position: 'relative',
+                  borderRadius: msg.role === 'user' ? '12px 0 12px 12px' : '0 12px 12px 12px'
+                }}>
+                  {msg.loading ? <Dots /> : <div dangerouslySetInnerHTML={{ __html: renderMd(msg.content, T.green, T.cyan, T.muted) }} />}
+                  <button onClick={() => copy(msg.id, msg.content)} style={{ position: 'absolute', top: 4, right: 4, background: 'transparent', border: 'none', color: T.muted, fontSize: 8, cursor: 'pointer' }}>{copied === msg.id ? 'COPIED' : 'COPY'}</button>
+                </div>
               </div>
             ))}
             <div ref={endRef} />
           </div>
         </div>
 
-        {/* Input */}
-        <div className="glass" style={{ flexShrink: 0, padding: '12px 16px', borderTop: `1px solid ${T.border}` }}>
-          {mode === 'ollama' && !ollamaStatus?.online && (
-            <div style={{ maxWidth: 820, margin: '0 auto 8px', padding: '6px 10px', border: `1px solid ${T.amber}44`, background: 'rgba(255,170,0,0.05)', color: T.amber, fontSize: 11, boxShadow: `0 0 10px ${T.amber}22` }}>
-              ⚠ Ollama offline. Run: <code style={{ color: T.cyan }}>ollama serve</code> in a terminal.
-            </div>
-          )}
-          <div style={{ maxWidth: 820, margin: '0 auto' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', border: `1px solid ${loading ? accentColor : T.border}`, padding: '8px 12px', background: 'rgba(5,10,21,0.8)', backdropFilter: 'blur(10px)', transition: 'all 0.3s', boxShadow: loading ? `0 0 20px ${accentColor}44, inset 0 0 10px ${accentColor}22` : '0 4px 20px rgba(0,0,0,0.5)' }}>
-              <span style={{ color: accentColor, fontWeight: 900, fontSize: 14, flexShrink: 0, marginBottom: 2, textShadow: `0 0 8px ${accentColor}` }}>&gt;</span>
+        {/* INPUT AREA */}
+        <div style={{ padding: '20px', borderTop: `1px solid ${T.border}`, background: 'rgba(10,15,29,0.5)' }}>
+          <div style={{ maxWidth: 850, margin: '0 auto', position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', background: 'rgba(13,18,37,0.8)', border: `1px solid ${loading ? T.cyan : T.border}`, padding: '12px', boxShadow: loading ? `0 0 20px ${T.cyan}22` : 'none', borderRadius: '4px' }}>
+              <span style={{ color: T.cyan, fontWeight: 800, marginBottom: 8 }}>&gt;</span>
               <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKey}
-                disabled={loading}
-                placeholder={mode === 'archon' ? 'ask anything... (/search, /recommend, /compare)' : mode === 'cloud' ? 'chat with cloud models (GPT-4o-mini, Claude 3)...' : 'chat with local Ollama model...'}
+                placeholder="Synchronizing query with cloud matrix..."
                 rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', color: accentColor, fontFamily: T.mono, fontSize: 13, fontWeight: 500, outline: 'none', resize: 'none', lineHeight: 1.6, maxHeight: 100, overflowY: 'auto', opacity: loading ? 0.5 : 1, caretColor: accentColor, textShadow: `0 0 5px ${accentColor}44` }}
-                onInput={e => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 100) + 'px'; }} />
-              <button onClick={toggleRecording}
-                className="btn btn-ghost"
-                style={{ padding: '6px 10px', fontSize: 14, color: isRecording ? '#ef4444' : T.muted }}>
-                {isRecording ? '🎙️' : '🎤'}
-              </button>
+                disabled={loading}
+                style={{ flex: 1, background: 'transparent', border: 'none', color: T.cyan, fontFamily: T.mono, fontSize: 14, outline: 'none', resize: 'none', minHeight: 24, maxHeight: 150 }}
+                onInput={e => { (e.target as any).style.height = 'auto'; (e.target as any).style.height = (e.target as any).scrollHeight + 'px'; }}
+              />
+              <button onClick={toggleRecording} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', paddingBottom: 4 }}>{isRecording ? '🔴' : '🎤'}</button>
               <button onClick={() => send(input)} disabled={loading || !input.trim()}
-                className="btn btn-primary"
-                style={{ padding: '6px 16px', fontSize: 11, opacity: input.trim() && !loading ? 1 : 0.5 }}>
-                SEND
-              </button>
+                style={{ background: T.cyan, color: T.bg, border: 'none', padding: '8px 16px', fontFamily: T.mono, fontWeight: 800, cursor: 'pointer', opacity: loading ? 0.5 : 1 }}>EXECUTE</button>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: T.muted }}>
-              <span>ENTER=send · SHIFT+ENTER=newline · ↑↓=history</span>
-              <span>{ollamaStatus?.online ? `● ${ollamaModel || ollamaStatus.models[0] || 'ollama'}` : '○ web-only'}</span>
+            <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', fontSize: 9, color: T.muted }}>
+              <span>SHIFT+ENTER FOR MULTILINE</span>
+              <span>MODEL: {cloudModel.toUpperCase()}</span>
             </div>
           </div>
         </div>
@@ -673,12 +344,15 @@ function ChatContent() {
 
       <style dangerouslySetInnerHTML={{
         __html: `
-        @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-        *::-webkit-scrollbar-thumb{background:${T.greenMuted}}
-        ::placeholder{color:${T.muted};font-family:${T.mono}}
-        ::selection{background:rgba(255,255,255,0.2)}
-        option{background:var(--bg-panel);color:var(--text)}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+        .glass{background:rgba(10,15,29,0.7);backdrop-filter:blur(10px);border:1px solid ${T.border}}
+        .scanline{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,0.2) 50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02));background-size:100% 2px,3px 100%;pointer-events:none;z-index:100}
+        *::-webkit-scrollbar{width:4px}
+        *::-webkit-scrollbar-thumb{background:${T.border};border-radius:10px}
+        *::-webkit-scrollbar-thumb:hover{background:${T.cyan}}
+        @media(max-width:768px){
+          .cyber-sidebar{position:fixed;z-index:1000;height:100%}
+        }
       `}} />
     </div>
   );
@@ -686,7 +360,7 @@ function ChatContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div style={{ padding: '20px', color: 'var(--muted)' }}>Loading chat interface...</div>}>
+    <Suspense fallback={<div style={{ padding: 20 }}>Loading Interface...</div>}>
       <ChatContent />
     </Suspense>
   );
