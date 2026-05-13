@@ -145,7 +145,6 @@ function ChatContent() {
     if (!autoRead || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
 
-    // Clean markdown before speaking
     const cleanText = text.replace(/[*_#`]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
     window.speechSynthesis.speak(utterance);
@@ -154,12 +153,10 @@ function ChatContent() {
   const initMode = ['ollama', 'cloud'].includes(sp.get('mode') || '') ? (sp.get('mode') as 'ollama' | 'cloud') : 'archon';
   const [mode, setMode] = useState<'archon' | 'ollama' | 'cloud'>(initMode);
 
-  const [archonMsgs, setArchonMsgs] = useState<Msg[]>([WELCOME_ARCHON]);
-  const [ollamaMsgs, setOllamaMsgs] = useState<Msg[]>([WELCOME_OLLAMA]);
-  const [cloudMsgs, setCloudMsgs] = useState<Msg[]>([WELCOME_CLOUD]);
-
-  const msgs = mode === 'archon' ? archonMsgs : (mode === 'cloud' ? cloudMsgs : ollamaMsgs);
-  const setMsgs = mode === 'archon' ? setArchonMsgs : (mode === 'cloud' ? setCloudMsgs : setOllamaMsgs);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  useEffect(() => {
+    setMessages([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]);
+  }, [mode]);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -168,30 +165,31 @@ function ChatContent() {
   const [cloudModel, setCloudModel] = useState('gpt-4o-mini');
   const [user, setUser] = useState<any>({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [copied, setCopied] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [histIdx, setHistIdx] = useState(-1);
   const [activeConv, setActiveConv] = useState<number | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [modelCount, setModelCount] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (!getToken()) { router.replace('/auth/login'); return; }
+    if (!getToken()) { logout(); return; }
     setUser(getUser());
     checkOllama();
     fetchConversations();
     const t = setInterval(checkOllama, 30000);
     return () => clearInterval(t);
-  }, [router]);
+  }, []);
 
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${API}/chat/conversations`, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data);
-      }
+      if (res.status === 401) { logout(); return; }
+      if (res.ok) setHistory(await res.json());
     } catch (e) { console.error(e); }
   };
 
@@ -201,18 +199,14 @@ function ChatContent() {
       const res = await fetch(`${API}/chat/conversations`, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        const fullConv = data.find((c: any) => c.id === conv.id);
-        if (fullConv && fullConv.messages) {
-          const loadedMsgs = fullConv.messages.map((m: any) => ({
-            id: m.id.toString(),
-            role: m.role,
-            content: m.content,
-            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }));
-          setMsgs(loadedMsgs);
-        }
+      if (res.status === 401) { logout(); return; }
+      const data = await res.json();
+      const fullConv = data.find((c: any) => c.id === conv.id);
+      if (fullConv?.messages) {
+        setMessages(fullConv.messages.map((m: any) => ({
+          id: m.id.toString(), role: m.role, content: m.content,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        })));
       }
     } catch (e) { console.error(e); }
   };
@@ -225,25 +219,28 @@ function ChatContent() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${getToken()}` }
       });
+      if (res.status === 401) { logout(); return; }
       if (res.ok) {
         setHistory(h => h.filter(c => c.id !== id));
         if (activeConv === id) {
           setActiveConv(null);
-          setMsgs([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]);
+          setMessages([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]);
         }
       }
     } catch (e) { console.error(e); }
   };
 
-  const [modelCount, setModelCount] = useState(0);
   useEffect(() => {
     fetch(`${API}/models`).then(r => r.json()).then(d => {
       const count = Array.isArray(d) ? d.length : 0;
       setModelCount(count);
-      setArchonMsgs(prev => {
-        const first = { ...prev[0] };
-        first.content = first.content.replace(/\d+ models indexed/, `${count} models indexed`);
-        return [first, ...prev.slice(1)];
+      setMessages(prev => {
+        if (prev.length > 0 && prev[0].role === 'assistant') {
+          const first = { ...prev[0] };
+          first.content = first.content.replace(/\d+ models indexed/, `${count} models indexed`);
+          return [first, ...prev.slice(1)];
+        }
+        return prev;
       });
     }).catch(() => {});
   }, []);
@@ -254,7 +251,7 @@ function ChatContent() {
     if (q) { setInput(q); setTimeout(() => inputRef.current?.focus(), 200); }
   }, [sp]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, loading]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
 
   const checkOllama = async () => {
     try {
@@ -270,18 +267,79 @@ function ChatContent() {
   const sendArchon = async (text: string) => {
     const id = Date.now().toString();
     const loadId = (Date.now() + 1).toString();
-    setMsgs(p => [...p, { id, role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, { id: loadId, role: 'assistant', content: '', time: '', loading: true }]);
+    setMessages(p => [...p, { id, role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, { id: loadId, role: 'assistant', content: '', time: '', loading: true }]);
     
-    // Save to conversation if active
     let convId = activeConv;
     if (!convId) {
-      // Create new conversation
       try {
         const cRes = await fetch(`${API}/chat/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
         });
+        if (cRes.status === 401) { logout(); return; }
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          convId = cData.id;
+          setActiveConv(convId);
+          fetchConversations();
+        }
+      } catch (e) { console.error("Conv creation failed:", e); }
+    }
+
+    if (convId) {
+      fetch(`${API}/chat/conversations/${convId}/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ role: 'user', content: text })
+      }).catch(console.error);
+    }
+
+    try {
+      const r = await fetch(`${API}/chat/archon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ message: text, model: ollamaModel }),
+      });
+      if (r.status === 401) { logout(); return; }
+      const d = await r.json();
+      
+      const replyContent = d.response || 'No response from ARCHON.';
+      if (convId && d.response) {
+        fetch(`${API}/chat/conversations/${convId}/messages`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ role: 'assistant', content: replyContent })
+        }).catch(console.error);
+      }
+
+      setMessages(p => p.filter(m => m.id !== loadId).concat({
+        id: (Date.now() + 2).toString(), role: 'assistant',
+        content: replyContent,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        ollamaUsed: d.ollama_used,
+        sources: d.sources
+      }));
+    } catch {
+      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Backend unreachable.', time: '' }));
+    }
+  };
+
+  const sendOllama = async (text: string) => {
+    const loadId = (Date.now() + 1).toString();
+    const model = ollamaModel === 'auto' ? (ollamaStatus?.models[0] || 'llama3') : ollamaModel;
+    setMessages(p => [...p,
+    { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+    { id: loadId, role: 'assistant', content: '', time: '', loading: true }
+    ]);
+
+    let convId = activeConv;
+    if (!convId) {
+      try {
+        const cRes = await fetch(`${API}/chat/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
+        });
+        if (cRes.status === 401) { logout(); return; }
         if (cRes.ok) {
           const cData = await cRes.json();
           convId = cData.id;
@@ -290,94 +348,97 @@ function ChatContent() {
         }
       } catch (e) { console.error(e); }
     }
-
     if (convId) {
-      await fetch(`${API}/chat/conversations/${convId}/messages`, {
+      fetch(`${API}/chat/conversations/${convId}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ role: 'user', content: text })
       }).catch(console.error);
     }
 
     try {
-      const r = await fetch(`${API}/chat/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ message: text, model: ollamaModel === 'auto' ? undefined : ollamaModel }),
-      });
-      if (r.status === 401) { clearAuth(); router.replace('/auth/login'); return; }
-      const d = r.ok ? await r.json() : null;
-      const replyContent = d?.response || 'Error connecting to backend.';
-      
-      if (convId && d?.response) {
-        await fetch(`${API}/chat/conversations/${convId}/messages`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ role: 'assistant', content: replyContent })
-        }).catch(console.error);
-      }
-
-      const reply: Msg = { id: (Date.now() + 2).toString(), role: 'assistant', content: replyContent, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), sources: d?.sources || [], ollamaUsed: d?.ollama_used || false };
-      setMsgs(p => p.filter(m => m.id !== loadId).concat(reply));
-      if (d?.ollama_status) setOllamaStatus(d.ollama_status);
-    } catch {
-      setMsgs(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: `ERROR: Cannot connect to ${API}.`, time: '' }));
-    }
-  };
-
-  const sendOllama = async (text: string) => {
-    if (!ollamaStatus?.online) {
-      setMsgs(p => [...p, { id: Date.now().toString(), role: 'user', content: text, time: '' },
-      { id: (Date.now() + 1).toString(), role: 'assistant', content: 'ERROR: Ollama is offline. Start it with: ollama serve', time: '' }]);
-      return;
-    }
-    const model = ollamaModel || ollamaStatus?.models?.[0] || 'phi3:mini';
-    const loadId = (Date.now() + 1).toString();
-    setMsgs(p => [...p,
-    { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-    { id: loadId, role: 'assistant', content: '', time: '', loading: true }
-    ]);
-    try {
       const r = await fetch(`${API}/chat/ollama-direct`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ message: text, model: model }),
       });
-      if (r.status === 401) { clearAuth(); router.replace('/auth/login'); return; }
+      if (r.status === 401) { logout(); return; }
       const d = r.ok ? await r.json() : null;
-      setMsgs(p => p.filter(m => m.id !== loadId).concat({
+      const replyContent = d?.response || 'Error connecting to Ollama.';
+      
+      if (convId && d?.response) {
+        fetch(`${API}/chat/conversations/${convId}/messages`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ role: 'assistant', content: replyContent })
+        }).catch(console.error);
+      }
+
+      setMessages(p => p.filter(m => m.id !== loadId).concat({
         id: (Date.now() + 2).toString(), role: 'assistant',
-        content: d?.response?.trim() || 'No response from Ollama.',
+        content: replyContent,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        ollamaUsed: true,
+        ollamaUsed: true
       }));
-      if (d?.response) speakText(d.response.trim());
     } catch {
-      setMsgs(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Cannot connect to Ollama backend.', time: '' }));
+      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Backend unreachable.', time: '' }));
     }
   };
 
   const sendCloud = async (text: string) => {
     const loadId = (Date.now() + 1).toString();
-    setMsgs(p => [...p,
+    setMessages(p => [...p,
     { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
     { id: loadId, role: 'assistant', content: '', time: '', loading: true }
     ]);
+
+    let convId = activeConv;
+    if (!convId) {
+      try {
+        const cRes = await fetch(`${API}/chat/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
+        });
+        if (cRes.status === 401) { logout(); return; }
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          convId = cData.id;
+          setActiveConv(convId);
+          fetchConversations();
+        }
+      } catch (e) { console.error(e); }
+    }
+    if (convId) {
+      fetch(`${API}/chat/conversations/${convId}/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ role: 'user', content: text })
+      }).catch(console.error);
+    }
+
     try {
       const r = await fetch(`${API}/chat/cloud`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ message: text, model: cloudModel }),
       });
-      if (r.status === 401) { clearAuth(); router.replace('/auth/login'); return; }
+      if (r.status === 401) { logout(); return; }
       const d = r.ok ? await r.json() : null;
-      setMsgs(p => p.filter(m => m.id !== loadId).concat({
+      const replyContent = d?.response || 'Error connecting to OmniCloud.';
+
+      if (convId && d?.response) {
+        fetch(`${API}/chat/conversations/${convId}/messages`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ role: 'assistant', content: replyContent })
+        }).catch(console.error);
+      }
+
+      setMessages(p => p.filter(m => m.id !== loadId).concat({
         id: (Date.now() + 2).toString(), role: 'assistant',
-        content: d?.response?.trim() || 'No response from OmniCloud.',
+        content: replyContent,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        ollamaUsed: true,
+        ollamaUsed: true
       }));
-      if (d?.response) speakText(d.response.trim());
     } catch {
-      setMsgs(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Cannot connect to OmniCloud backend.', time: '' }));
+      setMessages(p => p.filter(m => m.id !== loadId).concat({ id: (Date.now() + 2).toString(), role: 'assistant', content: 'ERROR: Cannot connect to OmniCloud backend.', time: '' }));
     }
   };
 
@@ -389,7 +450,7 @@ function ChatContent() {
     if (t.startsWith('/recommend ')) resolved = `Recommend AI model for: ${t.slice(11)}`;
     if (t === '/list') resolved = 'List all AI models';
     if (t === '/free') resolved = 'Show all free AI models';
-    setHistory(h => [t, ...h.slice(0, 49)]);
+    setCommandHistory(h => [t, ...h.slice(0, 49)]);
     setHistIdx(-1);
     setInput('');
     setLoading(true);
@@ -402,6 +463,8 @@ function ChatContent() {
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
+    if (e.key === 'ArrowUp' && !input) { const i = Math.min(histIdx + 1, commandHistory.length - 1); setHistIdx(i); setInput(commandHistory[i] || ''); }
+    if (e.key === 'ArrowDown') { const i = Math.max(histIdx - 1, -1); setHistIdx(i); setInput(i === -1 ? '' : commandHistory[i]); }
   };
 
   const copy = (id: string, txt: string) => { navigator.clipboard.writeText(txt); setCopied(id); setTimeout(() => setCopied(null), 1500); };
@@ -577,7 +640,7 @@ function ChatContent() {
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 16, scrollbarWidth: 'thin', scrollbarColor: `${T.greenMuted} ${T.panel}` }}>
           <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {msgs.map(msg => (
+            {messages.map(msg => (
               <div key={msg.id} style={{ marginBottom: 16, animation: 'fadeIn 0.25s ease' }}>
                 {msg.role === 'user' ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
