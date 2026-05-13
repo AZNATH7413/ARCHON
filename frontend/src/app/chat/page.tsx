@@ -19,52 +19,16 @@ const T = {
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; time: string; sources?: any[]; ollamaUsed?: boolean; loading?: boolean; }
 interface OllamaStatus { online: boolean; models: string[]; type?: 'local' | 'cloud'; }
 
-const QUICK = [
-  { cmd: 'best AI for Python coding', label: '/recommend coding' },
-  { cmd: '/search latest AI news 2025', label: '/search AI news' },
-  { cmd: 'compare Claude 4.6 and GPT-5.4', label: '/compare models' },
-  { cmd: 'show all free AI models', label: '/list free' },
-  { cmd: 'best AI agent tools', label: '/agents' },
-];
-
-const WELCOME_ARCHON: Msg = {
-  id: 'w1', role: 'assistant', time: '',
-  content: `ARCHON Agent v2.0 — Ready
-━━━━━━━━━━━━━━━━━━━━━━
-
-> Connected to recommendation engine
-> ${0} models indexed
-> Web search enabled
-
-Commands:
-  /search [query]       live web search
-  /recommend [task]     find best model
-  /compare [a] vs [b]   side-by-side
-  /list                 all models
-  /free                 free models only`,
-};
-
-const WELCOME_OLLAMA: Msg = {
-  id: 'w2', role: 'assistant', time: '',
-  content: `Ollama Direct v2.0 — Local LLM
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-> Connecting to localhost:11434...
-> No data leaves your machine
-
-Type anything to chat with your local model.`,
-};
-
 const WELCOME_CLOUD: Msg = {
   id: 'w3', role: 'assistant', time: '',
-  content: `OmniCloud AI v2.0 — Live Cloud Models
+  content: `OmniCloud AI v3.0 — Infinite Intelligence
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-> Connected to DuckDuckGo OmniCloud
-> Free access to GPT-4o-mini, Claude 3 Haiku, Llama 3.1 70B
-> Lightning fast response times
+> Global Cloud Access: Enabled
+> Multi-Model Synthesis: Online
+> 25+ High-Performance LLMs available
 
-Select a model from the top bar to begin.`,
+Select a state-of-the-art model from the header to begin.`,
 };
 
 function Dots() {
@@ -150,17 +114,13 @@ function ChatContent() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const initMode = ['ollama', 'cloud'].includes(sp.get('mode') || '') ? (sp.get('mode') as 'ollama' | 'cloud') : 'archon';
-  const [mode, setMode] = useState<'archon' | 'ollama' | 'cloud'>(initMode);
-
+  const [mode, setMode] = useState<'cloud'>('cloud');
   const [messages, setMessages] = useState<Msg[]>([]);
-  useEffect(() => {
-    setMessages([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]);
-  }, [mode]);
+  useEffect(() => { setMessages([WELCOME_CLOUD]); }, []);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>({ online: true, models: ['llama3 (cloud)', 'mistral (cloud)', 'phi3 (cloud)'], type: 'cloud' });
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>({ online: true, models: [], type: 'cloud' });
   const [ollamaModel, setOllamaModel] = useState('');
   const [cloudModel, setCloudModel] = useState('gpt-4o-mini');
   const [user, setUser] = useState<any>({});
@@ -454,12 +414,10 @@ function ChatContent() {
     setHistIdx(-1);
     setInput('');
     setLoading(true);
-    if (mode === 'archon') await sendArchon(resolved);
-    else if (mode === 'cloud') await sendCloud(resolved);
-    else await sendOllama(resolved);
+    await sendCloud(t);
     setLoading(false);
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, [loading, mode, ollamaStatus, ollamaModel]);
+  }, [loading, cloudModel]);
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
@@ -488,25 +446,16 @@ function ChatContent() {
 
           {/* Mode switcher */}
           <div>
-            <div style={{ color: T.muted, fontSize: 10, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Mode</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {([['archon', 'ARCHON Agent', T.green], ['cloud', 'OmniCloud AI', T.amber], ['ollama', 'Ollama Direct', T.cyan]] as const).map(([m, label, col]) => (
-                <button key={m} onClick={() => setMode(m)}
-                  style={{ background: mode === m ? `${col}11` : 'transparent', border: `1px solid ${mode === m ? col : T.border}`, color: mode === m ? col : T.muted, padding: '5px 8px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', transition: 'all 0.15s' }}>
-                  {mode === m ? '▶ ' : ''}{label}
-                </button>
-              ))}
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Current Mode</div>
+            <div style={{ background: `${T.amber}11`, border: `1px solid ${T.amber}`, color: T.amber, padding: '5px 8px', fontFamily: T.mono, fontSize: 11 }}>
+              ▶ OmniCloud AI (Active)
             </div>
           </div>
 
-          {/* Ollama status */}
+          {/* System status */}
           <div style={{ fontSize: 10 }}>
-            <span style={{ color: T.green }}>
-              ● OLLAMA {ollamaStatus?.type === 'cloud' ? 'ONLINE (Cloud)' : 'ONLINE (Local)'}
-            </span>
-            <div style={{ color: T.muted, marginTop: 3 }}>
-              Active: {ollamaModel === 'auto' ? 'Agent Pick' : (ollamaModel || (ollamaStatus?.models?.[0] || 'llama3 (cloud)'))}
-            </div>
+            <span style={{ color: T.green }}>● CLOUD NODES ACTIVE</span>
+            <div style={{ color: T.muted, marginTop: 3 }}>Latency: ~120ms</div>
           </div>
 
           {/* New chat */}
@@ -583,35 +532,41 @@ function ChatContent() {
                 <input type="checkbox" checked={autoRead} onChange={e => setAutoRead(e.target.checked)} />
                 Auto-Speak
               </label>
-              {mode === 'cloud' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: T.muted, fontSize: 10, textTransform: 'uppercase' }}>Model:</span>
-                  <select value={cloudModel} onChange={e => setCloudModel(e.target.value)}
-                    style={{
-                      background: T.card, border: `1px solid ${T.amber}`, color: T.amber,
-                      fontFamily: T.mono, fontSize: 12, padding: '4px 8px', borderRadius: 4, outline: 'none', cursor: 'pointer', minWidth: 140
-                    }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: T.muted, fontSize: 10, textTransform: 'uppercase' }}>Model Selector:</span>
+                <select value={cloudModel} onChange={e => setCloudModel(e.target.value)}
+                  style={{
+                    background: T.card, border: `1px solid ${T.amber}`, color: T.amber,
+                    fontFamily: T.mono, fontSize: 12, padding: '4px 8px', borderRadius: 4, outline: 'none', cursor: 'pointer', minWidth: 180
+                  }}>
+                  <optgroup label="OpenAI Models">
+                    <option value="gpt-4o">GPT-4o (Omni)</option>
                     <option value="gpt-4o-mini">GPT-4o Mini</option>
+                  </optgroup>
+                  <optgroup label="Anthropic Models">
                     <option value="claude-3-haiku">Claude 3 Haiku</option>
+                    <option value="claude-3-sonnet">Claude 3.5 Sonnet</option>
+                  </optgroup>
+                  <optgroup label="Meta / Llama">
+                    <option value="llama-3.1-405b">Llama 3.1 405B</option>
                     <option value="llama-3.1-70b">Llama 3.1 70B</option>
+                    <option value="llama-3.1-8b">Llama 3.1 8B</option>
+                  </optgroup>
+                  <optgroup label="Mistral Models">
+                    <option value="mistral-large">Mistral Large 2</option>
                     <option value="mixtral-8x7b">Mixtral 8x7B</option>
-                  </select>
-                </div>
-              )}
+                  </optgroup>
+                  <optgroup label="Google Models">
+                    <option value="gemma-2-27b">Gemma 2 27B</option>
+                  </optgroup>
+                  <optgroup label="Specialized Models">
+                    <option value="searchgpt">SearchGPT (Live Search)</option>
+                    <option value="qwen-2.5-72b">Qwen 2.5 72B</option>
+                    <option value="phi-3-medium">Phi-3 Medium</option>
+                  </optgroup>
+                </select>
+              </div>
 
-              {mode !== 'cloud' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: T.muted, fontSize: 10, textTransform: 'uppercase' }}>Model:</span>
-                  <select value={ollamaModel} onChange={e => setOllamaModel(e.target.value)}
-                    style={{
-                      background: T.card, border: `1px solid ${accentBorder}`, color: accentColor,
-                      fontFamily: T.mono, fontSize: 12, padding: '4px 8px', borderRadius: 4, outline: 'none', cursor: 'pointer', minWidth: 140
-                    }}>
-                    {mode === 'archon' && <option value="auto">Auto (Agent Pick)</option>}
-                    {ollamaStatus?.models?.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              )}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
