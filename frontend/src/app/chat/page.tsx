@@ -17,7 +17,7 @@ const T = {
 };
 
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; time: string; sources?: any[]; ollamaUsed?: boolean; loading?: boolean; }
-interface OllamaStatus { online: boolean; models: string[]; }
+interface OllamaStatus { online: boolean; models: string[]; type?: 'local' | 'cloud'; }
 
 const QUICK = [
   { cmd: 'best AI for Python coding', label: '/recommend coding' },
@@ -599,7 +599,7 @@ function ChatContent() {
                 </div>
               )}
 
-              {mode !== 'cloud' && ollamaStatus?.online && ollamaStatus.models.length > 0 && (
+              {mode !== 'cloud' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ color: T.muted, fontSize: 10, textTransform: 'uppercase' }}>Model:</span>
                   <select value={ollamaModel} onChange={e => setOllamaModel(e.target.value)}
@@ -608,23 +608,11 @@ function ChatContent() {
                       fontFamily: T.mono, fontSize: 12, padding: '4px 8px', borderRadius: 4, outline: 'none', cursor: 'pointer', minWidth: 140
                     }}>
                     {mode === 'archon' && <option value="auto">Auto (Agent Pick)</option>}
-                    {ollamaStatus.models.map(m => <option key={m} value={m}>{m}</option>)}
+                    {ollamaStatus?.models?.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
               )}
             </div>
-
-            {mode === 'archon' && !ollamaStatus?.online && (
-              <span style={{ color: accentColor, fontSize: 10, border: `1px solid ${accentBorder}`, padding: '1px 6px' }}>
-                WEB-ONLY
-              </span>
-            )}
-
-            {mode === 'ollama' && !ollamaStatus?.online && (
-              <span style={{ color: accentColor, fontSize: 10, border: `1px solid ${accentBorder}`, padding: '1px 6px' }}>
-                OFFLINE
-              </span>
-            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ color: T.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{displayName}@archon</span>
