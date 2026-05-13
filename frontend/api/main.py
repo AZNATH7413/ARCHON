@@ -398,8 +398,8 @@ class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = None
 
-@app.post("/chat/message")
-async def chat_message(
+@app.post("/chat/archon")
+async def chat_archon(
     req: ChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
