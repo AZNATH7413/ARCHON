@@ -11,4 +11,4 @@ from main import app  # noqa: F401
 from mangum import Mangum
 
 # Vercel invokes this handler for every request to /api/*
-handler = Mangum(app, lifespan="off")
+handler = Mangum(app, lifespan="off", api_gateway_base_path="/api")
