@@ -75,10 +75,11 @@ function Dots() {
 
 function renderMd(txt: string, green: string, cyan: string, muted: string) {
   return txt
-    .replace(/^## (.+)$/gm, `<div style="color:${cyan};font-weight:700;font-size:13px;border-bottom:1px solid #0d2e18;padding-bottom:3px;margin:10px 0 4px">$1</div>`)
+    .replace(/^## (.+)$/gm, `<div style="display:flex;justify-content:space-between;align-items:center;color:${cyan};font-weight:700;font-size:13px;border-bottom:1px solid #0d2e18;padding-bottom:3px;margin:10px 0 4px"><span>$1</span><button onclick="navigator.clipboard.writeText('$1')" style="color:#ff6b35;font-size:10px;cursor:pointer;background:transparent;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#ff6b35';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#ff6b35'">Copy</button></div>`)
     .replace(/^### (.+)$/gm, `<div style="color:${green};font-weight:600;margin:7px 0 3px">▸ $1</div>`)
     .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${green}">$1</strong>`)
-    .replace(/`([^`]+)`/g, `<code style="color:${cyan};background:#1a0006;padding:1px 5px;border:1px solid #80001a">$1</code>`)
+    .replace(/```([^`]+)```/gs, `<div style="position:relative;margin:10px 0"><button onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)" style="position:absolute;top:5px;right:5px;color:#ff6b35;font-size:10px;cursor:pointer;background:#0a0e27;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;z-index:10;">Copy Code</button><pre style="color:${cyan};background:#0a0e27;padding:10px;border:1px solid #1f2136;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px"><code>$1</code></pre></div>`)
+    .replace(/`([^`]+)`/g, `<code style="color:${cyan};background:#1a0006;padding:1px 5px;border:1px solid #80001a;border-radius:3px">$1</code>`)
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" style="color:${cyan};text-decoration:underline dotted">$1↗</a>`)
     .replace(/^\|(.+)\|$/gm, row => {
       const cells = row.split('|').filter(Boolean);
@@ -168,8 +169,8 @@ function ChatContent() {
   const [user, setUser] = useState<any>({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
-  const [history, setHistory] = useState<string[]>([]);
-  const [histIdx, setHistIdx] = useState(-1);
+  const [history, setHistory] = useState<any[]>([]);
+  const [activeConv, setActiveConv] = useState<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -177,9 +178,44 @@ function ChatContent() {
     if (!getToken()) { router.replace('/auth/login'); return; }
     setUser(getUser());
     checkOllama();
+    fetchConversations();
     const t = setInterval(checkOllama, 30000);
     return () => clearInterval(t);
   }, [router]);
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch(`${API}/chat/conversations`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const loadConversation = async (conv: any) => {
+    setActiveConv(conv.id);
+    try {
+      const res = await fetch(`${API}/chat/conversations`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const fullConv = data.find((c: any) => c.id === conv.id);
+        if (fullConv && fullConv.messages) {
+          const loadedMsgs = fullConv.messages.map((m: any) => ({
+            id: m.id.toString(),
+            role: m.role,
+            content: m.content,
+            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }));
+          setMsgs(loadedMsgs);
+        }
+      }
+    } catch (e) { console.error(e); }
+  };
 
   // Restore mode from query param on load
   useEffect(() => {
@@ -210,6 +246,33 @@ function ChatContent() {
     const id = Date.now().toString();
     const loadId = (Date.now() + 1).toString();
     setMsgs(p => [...p, { id, role: 'user', content: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, { id: loadId, role: 'assistant', content: '', time: '', loading: true }]);
+    
+    // Save to conversation if active
+    let convId = activeConv;
+    if (!convId) {
+      // Create new conversation
+      try {
+        const cRes = await fetch(`${API}/chat/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ title: text.slice(0, 30) + (text.length > 30 ? '...' : '') }),
+        });
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          convId = cData.id;
+          setActiveConv(convId);
+          fetchConversations();
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    if (convId) {
+      await fetch(`${API}/chat/conversations/${convId}/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ role: 'user', content: text })
+      }).catch(console.error);
+    }
+
     try {
       const r = await fetch(`${API}/chat/message`, {
         method: 'POST',
@@ -218,7 +281,16 @@ function ChatContent() {
       });
       if (r.status === 401) { clearAuth(); router.replace('/auth/login'); return; }
       const d = r.ok ? await r.json() : null;
-      const reply: Msg = { id: (Date.now() + 2).toString(), role: 'assistant', content: d?.response || 'Error connecting to backend.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), sources: d?.sources || [], ollamaUsed: d?.ollama_used || false };
+      const replyContent = d?.response || 'Error connecting to backend.';
+      
+      if (convId && d?.response) {
+        await fetch(`${API}/chat/conversations/${convId}/messages`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ role: 'assistant', content: replyContent })
+        }).catch(console.error);
+      }
+
+      const reply: Msg = { id: (Date.now() + 2).toString(), role: 'assistant', content: replyContent, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), sources: d?.sources || [], ollamaUsed: d?.ollama_used || false };
       setMsgs(p => p.filter(m => m.id !== loadId).concat(reply));
       if (d?.ollama_status) setOllamaStatus(d.ollama_status);
     } catch {
@@ -305,8 +377,6 @@ function ChatContent() {
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
-    if (e.key === 'ArrowUp' && !input) { const i = Math.min(histIdx + 1, history.length - 1); setHistIdx(i); setInput(history[i] || ''); }
-    if (e.key === 'ArrowDown') { const i = Math.max(histIdx - 1, -1); setHistIdx(i); setInput(i === -1 ? '' : history[i]); }
   };
 
   const copy = (id: string, txt: string) => { navigator.clipboard.writeText(txt); setCopied(id); setTimeout(() => setCopied(null), 1500); };
@@ -354,12 +424,27 @@ function ChatContent() {
           </div>
 
           {/* New chat */}
-          <button onClick={() => setMsgs([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA])}
+          <button onClick={() => { setActiveConv(null); setMsgs([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]); }}
             style={{ background: 'transparent', border: `1px solid ${accentColor}`, color: accentColor, padding: '6px 10px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', transition: 'all 0.15s' }}
             onMouseEnter={e => { (e.target as HTMLElement).style.background = accentColor; (e.target as HTMLElement).style.color = T.bg; }}
             onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; (e.target as HTMLElement).style.color = accentColor; }}>
             [+] NEW CONVERSATION
           </button>
+
+          {/* History */}
+          {history.length > 0 && (
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <div style={{ color: T.muted, fontSize: 10, marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>History</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {history.map((c) => (
+                  <button key={c.id} onClick={() => loadConversation(c)}
+                    style={{ background: activeConv === c.id ? `${T.cyan}22` : 'transparent', border: 'none', color: activeConv === c.id ? T.cyan : T.muted, padding: '4px 6px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', borderRadius: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {c.title || 'Chat'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Quick commands (archon only) */}
           {isArchon && (

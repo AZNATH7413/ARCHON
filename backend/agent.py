@@ -203,6 +203,23 @@ async def intelligent_agent_response(message: str, db, requested_model: str = No
         if llm_response and len(llm_response.strip()) > 30:
             ollama_used = True
 
+    # ── Try Cloud Fallback if Ollama is Offline ───────────────────────────────
+    if not llm_response:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as c:
+                target_model = "openai" # Default to GPT-4o-mini via pollinations
+                r = await c.post(
+                    "https://text.pollinations.ai/",
+                    json={"messages": [{"role": "system", "content": system}, {"role": "user", "content": user_prompt}], "model": target_model},
+                    headers={"Content-Type": "application/json"}
+                )
+                if r.status_code == 200:
+                    llm_response = r.text
+                    ollama_used = False
+                    status["cloud_fallback"] = True
+        except Exception as e:
+            print("Cloud fallback failed:", e)
+
     # ── Curated fallback ──────────────────────────────────────────────────────
     if not llm_response:
         llm_response = _curated(message, intent, m_lower, all_models, sources)
@@ -212,7 +229,7 @@ async def intelligent_agent_response(message: str, db, requested_model: str = No
         "sources": sources,
         "ollama_used": ollama_used,
         "ollama_status": status,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

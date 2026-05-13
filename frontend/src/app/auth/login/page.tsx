@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { setToken, setUser } from '../../../lib/auth';
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -46,8 +47,32 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || 'Google Login failed.');
+      }
+      const data = await res.json();
+      setToken(data.access_token);
+      setUser(data.user);
+      router.push('/chat');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred with Google Auth.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <>
+    <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "dummy_client_id"}>
       <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
       <p className="text-[#9ca3af] text-sm mb-7">Sign in to continue exploring the best AI models.</p>
 
@@ -111,6 +136,24 @@ export default function LoginPage() {
         </button>
       </form>
 
+      <div className="mt-4 flex items-center justify-center space-x-2">
+        <span className="h-px w-full bg-[#2a2b3d]"></span>
+        <span className="text-xs text-[#9ca3af] uppercase font-semibold">Or</span>
+        <span className="h-px w-full bg-[#2a2b3d]"></span>
+      </div>
+
+      <div className="mt-4 flex justify-center">
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={() => {
+            setError('Google Login was unsuccessful');
+          }}
+          theme="filled_black"
+          shape="rectangular"
+          text="signin_with"
+        />
+      </div>
+
       <div className="mt-6 pt-5 border-t border-[#2a2b3d] text-center">
         <p className="text-sm text-[#9ca3af]">
           Don&apos;t have an account?{' '}
@@ -119,6 +162,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-    </>
+    </GoogleOAuthProvider>
   );
 }

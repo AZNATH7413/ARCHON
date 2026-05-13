@@ -10,15 +10,20 @@ from schemas import (
     AIModelResponse, CategoryBase, RecommendRequest,
     RecommendationResponse, ReviewCreate, ReviewResponse,
     UserRegister, UserLogin, UserResponse, TokenResponse,
-    IntegrationModelResponse, UserProfileUpdate, AINewsResponse
+    IntegrationModelResponse, UserProfileUpdate, AINewsResponse,
+    GoogleAuthRequest, ConversationResponse, ConversationCreate,
+    MessageResponse, MessageCreate
 )
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import httpx
 import json
+import os
 from typing import Optional
 from datetime import datetime, timezone
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 # Create all database tables on startup
 Base.metadata.create_all(bind=engine)
@@ -239,10 +244,54 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
 @app.post("/auth/login", response_model=TokenResponse)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_data.email).first()
-    if not user or not verify_password(user_data.password, user.hashed_password):
+    if not user or not user.hashed_password or not verify_password(user_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer", "user": user}
+
+@app.post("/auth/google", response_model=TokenResponse)
+def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
+    try:
+        # Get Client ID from env or fallback to a dummy for testing
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "dummy_client_id")
+        
+        try:
+            # Verify the token with Google
+            idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), client_id)
+        except ValueError:
+            # For development without a real client ID, we can decode without verification if needed
+            # But normally we raise an error
+            if client_id == "dummy_client_id":
+                import jwt
+                idinfo = jwt.decode(req.credential, options={"verify_signature": False})
+            else:
+                raise HTTPException(status_code=401, detail="Invalid Google token")
+
+        email = idinfo.get("email")
+        name = idinfo.get("name", "Google User")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Google token missing email")
+
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            # Create a new user
+            user = User(
+                username=email.split("@")[0],
+                email=email,
+                full_name=name,
+                is_verified=True,
+                oauth_provider="google",
+                oauth_id=idinfo.get("sub", "")
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        access_token = create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer", "user": user}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Google Auth failed: {str(e)}")
 
 @app.post("/auth/verify-email")
 def verify_email(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -288,7 +337,35 @@ async def get_ai_news():
     news = await fetch_ai_news()
     return {"news": news, "timestamp": datetime.now(timezone.utc)}
 
-# ── Intelligent Chat Agent ────────────────────────────────────────────────────
+# ── Intelligent Chat Agent & History ────────────────────────────────────────
+
+@app.get("/chat/conversations", response_model=List[ConversationResponse])
+def get_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from models import Conversation
+    return db.query(Conversation).filter(Conversation.user_id == current_user.id).order_by(Conversation.updated_at.desc()).all()
+
+@app.post("/chat/conversations", response_model=ConversationResponse)
+def create_conversation(conv: ConversationCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from models import Conversation
+    new_conv = Conversation(user_id=current_user.id, title=conv.title)
+    db.add(new_conv)
+    db.commit()
+    db.refresh(new_conv)
+    return new_conv
+
+@app.post("/chat/conversations/{conv_id}/messages", response_model=MessageResponse)
+def add_message(conv_id: int, msg: MessageCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from models import Conversation, Message
+    conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    new_msg = Message(conversation_id=conv.id, role=msg.role, content=msg.content)
+    db.add(new_msg)
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(new_msg)
+    return new_msg
 
 class ChatRequest(BaseModel):
     message: str

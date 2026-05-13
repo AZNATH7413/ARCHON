@@ -8,3 +8,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 httpx
 mangum
+duckduckgo-search
+google-auth
+google-auth-oauthlib
+google-auth-httplib2

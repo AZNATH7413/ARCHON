@@ -89,3 +89,31 @@ class AINewsItem(BaseModel):
 class AINewsResponse(BaseModel):
     news: List[AINewsItem]
     timestamp: datetime
+
+class MessageBase(BaseModel):
+    role: str
+    content: str
+
+class MessageCreate(MessageBase):
+    pass
+
+class MessageResponse(MessageBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+
+class ConversationBase(BaseModel):
+    title: str
+
+class ConversationCreate(ConversationBase):
+    pass
+
+class ConversationResponse(ConversationBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    messages: List[MessageResponse] = []
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
