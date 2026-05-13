@@ -463,21 +463,15 @@ async def chat_ollama_direct(
     req: OllamaDirectRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Directly query the local Ollama instance bypassing CORS."""
+    """Query Ollama (Local or Cloud Proxy)."""
     try:
-        import httpx
-        from agent import OLLAMA_URL
-        async with httpx.AsyncClient(timeout=120.0) as c:
-            r = await c.post(
-                f"{OLLAMA_URL}/api/generate",
-                json={"model": req.model, "prompt": req.message, "stream": False, "options": {"temperature": 0.6, "num_predict": 700}},
-            )
-            if r.status_code == 200:
-                return {"response": r.json().get("response", ""), "model_used": req.model, "user": current_user.username}
-            else:
-                return {"response": f"Ollama error: {r.status_code}", "model_used": req.model, "user": current_user.username}
+        from agent import query_ollama
+        response = await query_ollama(req.message, model=req.model)
+        if response:
+            return {"response": response, "model_used": req.model, "user": current_user.username}
+        return {"response": "Error: Model unresponsive (Local & Cloud fallback failed)", "model_used": req.model, "user": current_user.username}
     except Exception as e:
-        return {"response": f"Error connecting to Ollama: {str(e)}", "model_used": req.model, "user": current_user.username}
+        return {"response": f"Error: {str(e)}", "model_used": req.model, "user": current_user.username}
 
 
 @app.get("/ollama/status")

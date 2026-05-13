@@ -8,23 +8,39 @@ from models import AIModel
 # ── Config ────────────────────────────────────────────────────────────────────
 OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODELS = ["phi3:mini", "phi3", "phi", "mistral", "llama3", "llama2", "gemma", "neural-chat"]
+CLOUD_OLLAMA_FALLBACK = ["llama3 (cloud)", "mistral (cloud)", "phi3 (cloud)"]
 
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
 
 async def check_ollama() -> dict:
     try:
-        async with httpx.AsyncClient(timeout=3.0) as c:
+        async with httpx.AsyncClient(timeout=1.5) as c:
             r = await c.get(f"{OLLAMA_URL}/api/tags")
             if r.status_code == 200:
                 models = [m["name"] for m in r.json().get("models", [])]
-                return {"online": True, "models": models}
+                return {"online": True, "models": models, "type": "local"}
     except Exception:
         pass
-    return {"online": False, "models": []}
+    # Permanent Online via Cloud Fallback
+    return {"online": True, "models": CLOUD_OLLAMA_FALLBACK, "type": "cloud"}
 
 
 async def query_ollama(prompt: str, model: str = "phi3:mini") -> str | None:
+    # Route Cloud models to Pollinations
+    if "(cloud)" in model:
+        target = "llama" if "llama" in model else "mistral" if "mistral" in model else "openai"
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as c:
+                r = await c.post(
+                    "https://text.pollinations.ai/",
+                    json={"messages": [{"role": "user", "content": prompt}], "model": target},
+                )
+                if r.status_code == 200: return r.text.strip()
+        except Exception: pass
+        return None
+
+    # Local Ollama
     try:
         async with httpx.AsyncClient(timeout=90.0) as c:
             r = await c.post(
