@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getToken, getUser, clearAuth } from '../../lib/auth';
@@ -91,7 +91,7 @@ function renderMd(txt: string, green: string, cyan: string, muted: string) {
     .replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
 }
 
-export default function ChatPage() {
+function ChatContent() {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -559,5 +559,13 @@ export default function ChatPage() {
         option{background:var(--bg-panel);color:var(--text)}
       `}} />
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '20px', color: 'var(--muted)' }}>Loading chat interface...</div>}>
+      <ChatContent />
+    </Suspense>
   );
 }
