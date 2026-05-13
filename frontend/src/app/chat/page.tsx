@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getToken, getUser, clearAuth } from '../../lib/auth';
+import { getToken, getUser, clearAuth, logout } from '../../lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 const OLLAMA = 'http://localhost:11434';
@@ -78,7 +78,7 @@ function renderMd(txt: string, green: string, cyan: string, muted: string) {
     .replace(/^## (.+)$/gm, `<div style="display:flex;justify-content:space-between;align-items:center;color:${cyan};font-weight:700;font-size:13px;border-bottom:1px solid #0d2e18;padding-bottom:3px;margin:10px 0 4px"><span>$1</span><button onclick="navigator.clipboard.writeText('$1')" style="color:#ff6b35;font-size:10px;cursor:pointer;background:transparent;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;transition:all 0.2s" onmouseover="this.style.background='#ff6b35';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#ff6b35'">Copy</button></div>`)
     .replace(/^### (.+)$/gm, `<div style="color:${green};font-weight:600;margin:7px 0 3px">▸ $1</div>`)
     .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${green}">$1</strong>`)
-    .replace(/```([^`]+)```/gs, `<div style="position:relative;margin:10px 0"><button onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)" style="position:absolute;top:5px;right:5px;color:#ff6b35;font-size:10px;cursor:pointer;background:#0a0e27;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;z-index:10;">Copy Code</button><pre style="color:${cyan};background:#0a0e27;padding:10px;border:1px solid #1f2136;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px"><code>$1</code></pre></div>`)
+    .replace(/```([\s\S]+?)```/g, `<div style="position:relative;margin:10px 0"><button onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)" style="position:absolute;top:5px;right:5px;color:#ff6b35;font-size:10px;cursor:pointer;background:#0a0e27;border:1px solid #3b3d54;padding:2px 6px;border-radius:4px;z-index:10;">Copy Code</button><pre style="color:${cyan};background:#0a0e27;padding:10px;border:1px solid #1f2136;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px"><code>$1</code></pre></div>`)
     .replace(/`([^`]+)`/g, `<code style="color:${cyan};background:#1a0006;padding:1px 5px;border:1px solid #80001a;border-radius:3px">$1</code>`)
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" style="color:${cyan};text-decoration:underline dotted">$1↗</a>`)
     .replace(/^\|(.+)\|$/gm, row => {
@@ -86,7 +86,7 @@ function renderMd(txt: string, green: string, cyan: string, muted: string) {
       if (cells.every(c => /^[-: ]+$/.test(c))) return '';
       return `<tr>${cells.map(c => `<td style="padding:3px 10px;border-right:1px solid #33000a;color:#ffd4d4">${c.trim()}</td>`).join('')}</tr>`;
     })
-    .replace(/(<tr>.*?<\/tr>)+/gs, m => `<table style="border-collapse:collapse;margin:8px 0;border:1px solid #33000a;font-size:11px">${m}</table>`)
+    .replace(/(<tr>[\s\S]*?<\/tr>)+/g, m => `<table style="border-collapse:collapse;margin:8px 0;border:1px solid #33000a;font-size:11px">${m}</table>`)
     .replace(/^- (.+)$/gm, `<div style="display:flex;gap:8px;margin:2px 0"><span style="color:${green}">▸</span><span>$1</span></div>`)
     .replace(/^(\d+)\. (.+)$/gm, `<div style="display:flex;gap:8px;margin:2px 0"><span style="color:${cyan};font-weight:700">$1.</span><span>$2</span></div>`)
     .replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
@@ -512,7 +512,7 @@ function ChatContent() {
           </div>
 
           {/* New chat */}
-          <button onClick={() => { setActiveConv(null); setMsgs([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]); }}
+          <button onClick={() => { setActiveConv(null); setMessages([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]); }}
             style={{ background: 'transparent', border: `1px solid ${accentColor}`, color: accentColor, padding: '6px 10px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', transition: 'all 0.15s' }}
             onMouseEnter={e => { (e.target as HTMLElement).style.background = accentColor; (e.target as HTMLElement).style.color = T.bg; }}
             onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; (e.target as HTMLElement).style.color = accentColor; }}>
