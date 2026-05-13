@@ -1,4 +1,6 @@
 import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Use /tmp on Vercel (serverless), local file otherwise
 DB_PATH = "/tmp/archon.db" if os.environ.get("VERCEL") else "./archon.db"
