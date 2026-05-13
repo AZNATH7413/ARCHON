@@ -20,12 +20,14 @@ from sklearn.metrics.pairwise import cosine_similarity
 import httpx
 import json
 import os
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from jose import jwt as jose_jwt # Use jose for all JWT operations
 
-# Create all database tables on startup
+
+# Create tables if not exist (don't drop)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -175,29 +177,46 @@ def recommend_models(req: RecommendRequest, db: Session = Depends(get_db)):
     if not models:
         return []
 
-    corpus = [f"{m.name} {m.description} {m.creator}" for m in models]
-    vectorizer = TfidfVectorizer(stop_words='english', min_df=1, ngram_range=(1, 2))
+    # 1. Primary: TF-IDF Similarity
     try:
-        tfidf_matrix = vectorizer.fit_transform(corpus)
-        task_vector = vectorizer.transform([req.task])
-        scores = cosine_similarity(task_vector, tfidf_matrix).flatten()
+        corpus = [f"{m.name} {m.description} {m.creator}" for m in models]
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform(corpus + [req.task])
+        
+        cosine_sim = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1]).flatten()
+        
+        results = []
+        for idx, score in enumerate(cosine_sim):
+            if score > 0.05:
+                results.append({
+                    "model": augment_model_data(models[idx]),
+                    "match_score": float(score),
+                    "reasoning": f"Matches based on content similarity ({int(score*100)}%)."
+                })
+        
+        if results:
+            return sorted(results, key=lambda x: x["match_score"], reverse=True)[:10]
+    except Exception as e:
+        print(f"TF-IDF failed: {e}")
 
-        recommendations = []
-        for i, score in enumerate(scores):
-            bonus = (models[i].coding_score + models[i].reasoning_score + models[i].creative_score) / 30000.0
-            recommendations.append({"model": models[i], "match_score": float(score) + bonus})
-
-        recommendations.sort(key=lambda x: x["match_score"], reverse=True)
-        top5 = recommendations[:5]
-
-        max_s = top5[0]["match_score"] if top5 and top5[0]["match_score"] > 0 else 1.0
-        for r in top5:
-            r["match_score"] = round(min(r["match_score"] / max_s, 1.0), 4)
-            r["model"] = augment_model_data(r["model"])
-
-        return top5
-    except ValueError:
-        return [{"model": m, "match_score": 0.0} for m in models[:5]]
+    # 2. Fallback: Simple Keyword Match
+    keywords = req.task.lower().split()
+    fallback_results = []
+    for m in models:
+        matches = 0
+        text = f"{m.name} {m.description} {m.creator}".lower()
+        for kw in keywords:
+            if kw in text:
+                matches += 1
+        if matches > 0:
+            score = matches / len(keywords)
+            fallback_results.append({
+                "model": augment_model_data(m),
+                "match_score": score,
+                "reasoning": f"Matches keywords: {matches}/{len(keywords)}"
+            })
+    
+    return sorted(fallback_results, key=lambda x: x["match_score"], reverse=True)[:10]
 
 # ── Reviews ───────────────────────────────────────────────────────────────────
 
@@ -260,10 +279,8 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
             idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), client_id)
         except ValueError:
             # For development without a real client ID, we can decode without verification if needed
-            # But normally we raise an error
             if client_id == "dummy_client_id":
-                import jwt
-                idinfo = jwt.decode(req.credential, options={"verify_signature": False})
+                idinfo = jose_jwt.get_unverified_claims(req.credential)
             else:
                 raise HTTPException(status_code=401, detail="Invalid Google token")
 
@@ -366,6 +383,16 @@ def add_message(conv_id: int, msg: MessageCreate, db: Session = Depends(get_db),
     db.commit()
     db.refresh(new_msg)
     return new_msg
+
+@app.delete("/chat/conversations/{conv_id}")
+def delete_conversation(conv_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from models import Conversation
+    conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    db.delete(conv)
+    db.commit()
+    return {"message": "Conversation deleted"}
 
 class ChatRequest(BaseModel):
     message: str

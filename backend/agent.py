@@ -140,6 +140,54 @@ async def intelligent_agent_response(message: str, db, requested_model: str = No
             for i, s in enumerate(sources[:4])
         )
 
+    # ── Prepare Prompts ───────────────────────────────────────────────────────
+    # System prompt based on intent
+    if intent == "general":
+        system = (
+            "You are ARCHON, a highly intelligent and capable AI assistant. "
+            "You are equipped with live web search to answer any question across all domains. "
+            "Always provide clear, accurate, and detailed answers based on the provided web search context. "
+            "Use markdown formatting."
+        )
+    else:
+        system = (
+            "You are ARCHON, an expert AI model recommendation assistant. "
+            "ONLY discuss AI models, tools, and related technology. "
+            "Always be specific: mention model names, scores, and pricing. "
+            "Use markdown: **bold** for model names, numbered lists for rankings. "
+            "Keep responses under 300 words."
+        )
+
+    user_prompt = f"User question: {message}\n\n{db_context}{web_context}"
+
+    # Build intent-specific guidance
+    if intent in ("task_coding", "task_creative", "task_reasoning", "task_writing", "task_agent", "task_research"):
+        task_label = intent.replace("task_", "")
+        user_prompt += (
+            f"\n\nInstruction: Recommend the TOP 4 AI models for {task_label} tasks. "
+            "For each model state: name, company, pricing, relevant score out of 100, and one sentence why it excels at this task. "
+            "Format as a numbered list."
+        )
+    elif intent == "compare":
+        user_prompt += (
+            "\n\nInstruction: Create a side-by-side comparison table with coding, reasoning, and creative scores. "
+            "State which model wins each category and give a final recommendation."
+        )
+    elif intent == "recommend":
+        user_prompt += (
+            "\n\nInstruction: Give 3–5 specific model recommendations with scores and pricing. "
+            "Ask one clarifying question to refine the recommendation."
+        )
+    elif intent == "pricing":
+        user_prompt += (
+            "\n\nInstruction: List all free, freemium, and open-source models from the database with their key strengths."
+        )
+    else:
+        user_prompt += (
+            "\n\nInstruction: Answer the user's question accurately using the provided web search results. "
+            "If the web results are irrelevant or empty, use your vast general knowledge."
+        )
+
     # ── Try Ollama ────────────────────────────────────────────────────────────
     status = await check_ollama()
     ollama_used = False
@@ -150,53 +198,6 @@ async def intelligent_agent_response(message: str, db, requested_model: str = No
             chosen = requested_model
         else:
             chosen = await get_ollama_model(status["models"])
-
-        # System prompt based on intent
-        if intent == "general":
-            system = (
-                "You are ARCHON, a highly intelligent and capable AI assistant. "
-                "You are equipped with live web search to answer any question across all domains. "
-                "Always provide clear, accurate, and detailed answers based on the provided web search context. "
-                "Use markdown formatting."
-            )
-        else:
-            system = (
-                "You are ARCHON, an expert AI model recommendation assistant. "
-                "ONLY discuss AI models, tools, and related technology. "
-                "Always be specific: mention model names, scores, and pricing. "
-                "Use markdown: **bold** for model names, numbered lists for rankings. "
-                "Keep responses under 300 words."
-            )
-
-        user_prompt = f"User question: {message}\n\n{db_context}{web_context}"
-
-        # Build intent-specific guidance
-        if intent in ("task_coding", "task_creative", "task_reasoning", "task_writing", "task_agent", "task_research"):
-            task_label = intent.replace("task_", "")
-            user_prompt += (
-                f"\n\nInstruction: Recommend the TOP 4 AI models for {task_label} tasks. "
-                "For each model state: name, company, pricing, relevant score out of 100, and one sentence why it excels at this task. "
-                "Format as a numbered list."
-            )
-        elif intent == "compare":
-            user_prompt += (
-                "\n\nInstruction: Create a side-by-side comparison table with coding, reasoning, and creative scores. "
-                "State which model wins each category and give a final recommendation."
-            )
-        elif intent == "recommend":
-            user_prompt += (
-                "\n\nInstruction: Give 3–5 specific model recommendations with scores and pricing. "
-                "Ask one clarifying question to refine the recommendation."
-            )
-        elif intent == "pricing":
-            user_prompt += (
-                "\n\nInstruction: List all free, freemium, and open-source models from the database with their key strengths."
-            )
-        else:
-            user_prompt += (
-                "\n\nInstruction: Answer the user's question accurately using the provided web search results. "
-                "If the web results are irrelevant or empty, use your vast general knowledge."
-            )
 
         full_prompt = f"{system}\n\n{user_prompt}"
         llm_response = await query_ollama(full_prompt, model=chosen)

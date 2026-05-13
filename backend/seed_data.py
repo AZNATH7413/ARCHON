@@ -4,8 +4,7 @@ from models import Category, AIModel
 def seed_db():
     db = SessionLocal()
     
-    # Drop and recreate all tables
-    Base.metadata.drop_all(bind=engine)
+    # Create tables if not exist
     Base.metadata.create_all(bind=engine)
 
     categories_data = [

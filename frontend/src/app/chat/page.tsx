@@ -217,11 +217,36 @@ function ChatContent() {
     } catch (e) { console.error(e); }
   };
 
-  // Restore mode from query param on load
+  const deleteConversation = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!confirm('Delete this conversation?')) return;
+    try {
+      const res = await fetch(`${API}/chat/conversations/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      if (res.ok) {
+        setHistory(h => h.filter(c => c.id !== id));
+        if (activeConv === id) {
+          setActiveConv(null);
+          setMsgs([mode === 'archon' ? WELCOME_ARCHON : mode === 'cloud' ? WELCOME_CLOUD : WELCOME_OLLAMA]);
+        }
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const [modelCount, setModelCount] = useState(0);
   useEffect(() => {
-    const m = sp.get('mode');
-    if (m === 'ollama' || m === 'cloud') setMode(m);
-  }, [sp]);
+    fetch(`${API}/models`).then(r => r.json()).then(d => {
+      const count = Array.isArray(d) ? d.length : 0;
+      setModelCount(count);
+      setArchonMsgs(prev => {
+        const first = { ...prev[0] };
+        first.content = first.content.replace(/\d+ models indexed/, `${count} models indexed`);
+        return [first, ...prev.slice(1)];
+      });
+    }).catch(() => {});
+  }, []);
 
   // Pre-fill search from query param
   useEffect(() => {
@@ -437,10 +462,18 @@ function ChatContent() {
               <div style={{ color: T.muted, fontSize: 10, marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>History</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {history.map((c) => (
-                  <button key={c.id} onClick={() => loadConversation(c)}
-                    style={{ background: activeConv === c.id ? `${T.cyan}22` : 'transparent', border: 'none', color: activeConv === c.id ? T.cyan : T.muted, padding: '4px 6px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', borderRadius: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {c.title || 'Chat'}
-                  </button>
+                  <div key={c.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <button onClick={() => loadConversation(c)}
+                      style={{ flex: 1, background: activeConv === c.id ? `${T.cyan}22` : 'transparent', border: 'none', color: activeConv === c.id ? T.cyan : T.muted, padding: '4px 6px', cursor: 'pointer', fontFamily: T.mono, fontSize: 11, textAlign: 'left', borderRadius: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {c.title || 'Chat'}
+                    </button>
+                    <button onClick={(e) => deleteConversation(e, c.id)}
+                      style={{ background: 'transparent', border: 'none', color: T.pink, cursor: 'pointer', padding: '2px 5px', fontSize: 10, opacity: 0.4 }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.4'}>
+                      [x]
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
