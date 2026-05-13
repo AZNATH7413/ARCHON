@@ -40,6 +40,7 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
+    console.log("Submitting registration for:", formData.email);
     try {
       // Step 1: Register the user
       const registerRes = await fetch(`${API_URL}/auth/register`, {

@@ -75,6 +75,11 @@ export default function LoginPage() {
     <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "dummy_client_id"}>
       <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
       <p className="text-[#9ca3af] text-sm mb-7">Sign in to continue exploring the best AI models.</p>
+      
+      <div className="mb-6 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg text-xs text-blue-300">
+        <span className="font-bold mr-1">Demo Access:</span> 
+        Use <code className="bg-blue-900/40 px-1 rounded">admin@archon.ai</code> / <code className="bg-blue-900/40 px-1 rounded">password123</code> for quick testing.
+      </div>
 
       {error && (
         <div className="mb-5 p-3.5 bg-red-900/40 border border-red-500/50 text-red-300 text-sm rounded-lg">

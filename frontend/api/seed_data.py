@@ -1,5 +1,6 @@
 from database import SessionLocal, engine, Base
-from models import Category, AIModel
+from models import Category, AIModel, User
+from auth import hash_password
 
 def seed_db():
     db = SessionLocal()
@@ -7,6 +8,19 @@ def seed_db():
     # Drop and recreate all tables
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
+    # Add default admin user
+    if not db.query(User).filter(User.email == "admin@archon.ai").first():
+        admin = User(
+            username="admin",
+            email="admin@archon.ai",
+            hashed_password=hash_password("password123"),
+            full_name="Archon Admin",
+            is_verified=True
+        )
+        db.add(admin)
+        db.commit()
+
 
     categories_data = [
         {"name": "Coding & Development", "description": "AI models optimized for writing, debugging, and analyzing code."},
