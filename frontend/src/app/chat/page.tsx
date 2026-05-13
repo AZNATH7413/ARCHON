@@ -160,7 +160,7 @@ function ChatContent() {
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>({ online: true, models: ['llama3 (cloud)', 'mistral (cloud)', 'phi3 (cloud)'], type: 'cloud' });
   const [ollamaModel, setOllamaModel] = useState('');
   const [cloudModel, setCloudModel] = useState('gpt-4o-mini');
   const [user, setUser] = useState<any>({});
@@ -501,14 +501,12 @@ function ChatContent() {
 
           {/* Ollama status */}
           <div style={{ fontSize: 10 }}>
-            <span style={{ color: ollamaStatus?.online ? T.green : T.muted }}>
-              {ollamaStatus?.online ? `● OLLAMA ONLINE` : '○ OLLAMA OFFLINE'}
+            <span style={{ color: T.green }}>
+              ● OLLAMA {ollamaStatus?.type === 'cloud' ? 'ONLINE (Cloud)' : 'ONLINE (Local)'}
             </span>
-            {ollamaStatus?.online && ollamaStatus.models.length > 0 && (
-              <div style={{ color: T.muted, marginTop: 3 }}>
-                Active: {ollamaModel === 'auto' ? 'Agent Pick' : (ollamaModel || ollamaStatus.models[0])}
-              </div>
-            )}
+            <div style={{ color: T.muted, marginTop: 3 }}>
+              Active: {ollamaModel === 'auto' ? 'Agent Pick' : (ollamaModel || (ollamaStatus?.models?.[0] || 'llama3 (cloud)'))}
+            </div>
           </div>
 
           {/* New chat */}
