@@ -280,7 +280,35 @@ function ChatContent() {
             </div>
           </div>
 
-          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
+          {/* Navigation Matrix */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Navigation Matrix</div>
+            {[
+              ['~/matrix_home', '/'],
+              ['~/compare_llm', '/compare'],
+              ['~/integrations', '/ai-integrations'],
+              ['~/user_profile', '/profile']
+            ].map(([label, href]) => (
+              <Link key={href} href={href} style={{ textDecoration: 'none' }}>
+                <div style={{ 
+                  background: 'rgba(0,229,255,0.03)', 
+                  border: `1px solid ${T.border}`, 
+                  color: T.muted, 
+                  padding: '8px 10px', 
+                  fontSize: 11, 
+                  fontFamily: T.mono,
+                  transition: 'all 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.cyan; (e.currentTarget as HTMLElement).style.color = T.cyan; (e.currentTarget as HTMLElement).style.background = 'rgba(0,229,255,0.08)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.muted; (e.currentTarget as HTMLElement).style.background = 'rgba(0,229,255,0.03)'; }}>
+                  {label}
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12, marginTop: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: T.muted }}>{displayName}@archon</span>
               <button onClick={() => { clearAuth(); router.push('/auth/login'); }} style={{ color: T.pink, fontSize: 10, cursor: 'pointer', background: 'transparent', border: `1px solid ${T.pink}44`, padding: '4px 8px' }}>DISCONNECT</button>
